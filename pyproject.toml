@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dat-study"
+version = "0.2.0"
+description = "Reusable local blood-allocation experiments with a common morning data contract"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.24,<3", "pandas>=2.0,<4", "scipy>=1.10,<2", "scikit-learn>=1.3,<2", "torch>=2.2,<3", "PyYAML>=6,<7", "joblib>=1.3,<2"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10", "ruff>=0.8,<1", "build>=1,<2"]
+
+[project.scripts]
+dat-study = "dat_study.cli:main"
+
+[tool.setuptools]
+packages = ["dat_study", "datransformer", "saa_experiment", "wsaa_experiment", "set_eto", "flat_eto"]
+
+[tool.setuptools.package-dir]
+dat_study = "src/dat_study"
+datransformer = "DAT/src/datransformer"
+saa_experiment = "SAA/src/saa_experiment"
+wsaa_experiment = "wSAA/src/wsaa_experiment"
+set_eto = "Set-ETO/src/set_eto"
+flat_eto = "Flat-ETO/src/flat_eto"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "data", "DAT/src", "SAA/src", "wSAA/src", "Set-ETO/src", "Flat-ETO/src"]
+addopts = "-ra"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]

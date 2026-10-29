@@ -1,0 +1,92 @@
+schema_version: 1
+seed: 42
+taus:
+- 0.5
+- 0.6
+- 0.7
+- 0.8
+- 0.9
+targets:
+- 260
+- 280
+- 300
+- 320
+- 340
+method: DAT
+data_root: ../../data/processed
+output_root: ../../outputs
+training:
+  epochs: 90
+  batch_size: 32
+  learning_rate: 0.0003
+  weight_decay: 0.0001
+  patience: 15
+  gradient_clip: 1.0
+  device: auto
+  threads: 4
+model:
+  d_model: 48
+  layer_norm_eps: 1.0e-05
+  context:
+    include_inventory: true
+    inventory_transform: standardize
+    inventory_clip: 6.0
+  patient_encoder:
+    hidden_dims:
+    - 96
+    activation: relu
+    dropout: 0.1
+  self_attention:
+    enabled: true
+    num_layers: 1
+    num_heads: 4
+    ff_dim: 144
+    activation: relu
+    dropout: 0.1
+  day_encoder:
+    hidden_dims:
+    - 64
+    activation: relu
+    dropout: 0.1
+  cross_attention:
+    num_layers: 1
+    num_heads: 4
+    ff_dim: 144
+    activation: relu
+    dropout: 0.1
+  head:
+    hidden_dims: []
+    activation: relu
+    dropout: 0.0
+    output_lower_bound: 0.0
+    output_upper_bound: 150.0
+  quantile_queries:
+    enabled: false
+loss:
+  type: softplus_pinball
+  validation_type: pinball
+  tau: 0.9
+  beta: 2.0
+  huber_delta: 1.0
+  taus:
+  - 0.5
+  - 0.6
+  - 0.7
+  - 0.8
+  - 0.9
+  primary_tau: 0.9
+constraints:
+  enabled: true
+  projection_interval: 1
+  global_parameter_radius: 100.0
+  operator_norm_bound: 4.0
+  bias_bound: 500.0
+  layer_norm_gain_bound: 2.0
+  layer_norm_shift_bound: 2.0
+three_stage:
+  order_epochs: 15
+  synthetic_epochs: 20
+  scenarios_per_day: 4
+  lora_rank: 4
+  finetune: lora
+  residual_neighbors: 30

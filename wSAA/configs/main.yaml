@@ -1,0 +1,25 @@
+schema_version: 1
+seed: 42
+taus:
+- 0.5
+- 0.6
+- 0.7
+- 0.8
+- 0.9
+targets:
+- 260
+- 280
+- 300
+- 320
+- 340
+method: wSAA
+data_root: ../../data/processed
+output_root: ../../outputs
+training:
+  epochs: 0
+  threads: 4
+  device: cpu
+wsaa:
+  n_estimators: 200
+  min_samples_leaf: 10
+  max_features: 1.0

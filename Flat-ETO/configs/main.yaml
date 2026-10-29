@@ -1,0 +1,33 @@
+schema_version: 1
+seed: 42
+taus:
+- 0.5
+- 0.6
+- 0.7
+- 0.8
+- 0.9
+targets:
+- 260
+- 280
+- 300
+- 320
+- 340
+method: Flat-ETO
+data_root: ../../data/processed
+output_root: ../../outputs
+training:
+  epochs: 90
+  batch_size: 32
+  learning_rate: 0.0003
+  weight_decay: 0.0001
+  patience: 15
+  gradient_clip: 1.0
+  device: auto
+  threads: 4
+flat_eto:
+  hidden_dims:
+  - 128
+  - 64
+  embedding_dim_cap: 32
+  dropout: 0.1
+  residual_neighbors: 30

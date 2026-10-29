@@ -1,0 +1,22 @@
+schema_version: 1
+seed: 42
+taus:
+- 0.5
+- 0.6
+- 0.7
+- 0.8
+- 0.9
+targets:
+- 260
+- 280
+- 300
+- 320
+- 340
+data_root: ../data/processed
+output_root: ../outputs
+model_configs:
+  DAT: ../DAT/configs/main.yaml
+  SAA: ../SAA/configs/main.yaml
+  wSAA: ../wSAA/configs/main.yaml
+  Flat-ETO: ../Flat-ETO/configs/main.yaml
+  Set-ETO: ../Set-ETO/configs/main.yaml
