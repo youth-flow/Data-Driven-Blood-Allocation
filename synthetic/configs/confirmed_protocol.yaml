@@ -1,0 +1,167 @@
+# Scientific design contract. NOT a configuration for the legacy v2 launcher.
+protocol_version: 1
+status: design_frozen_implementation_pending
+generator_family: compact_bounded_order_mixture
+generator_version_planned: 3
+training_mode: direct_daily_scalar_quantile
+data_access: fully_artificial_only
+sampling:
+  iid_days: true
+  dates_are_identifiers_only: true
+  fixed_known_scaling: true
+  order_dimension: 3
+  day_dimension_excluding_count: 7
+  explicit_normalized_count: true
+  inventory_is_day_coordinate: true
+  n_new_max: 4
+  demand_grid_step: 0.5
+  continuous_remainder_width: 0.5
+  inventory_center: 315.0
+  inventory_context_coefficient: 20.0
+  inventory_noise_half_width: 70.0
+  peer_kernel_bandwidth: 0.25
+scenarios:
+  S1: {context: 0.0, peer: 0.0, shock: 0.0}
+  S2: {context: 1.0, peer: 0.0, shock: 0.0}
+  S3: {context: 1.0, peer: 1.5, shock: 0.0}
+  S4: {context: 1.0, peer: 1.5, shock: 0.8}
+dat:
+  heads: 4
+  patient_blocks: 1
+  cross_blocks: 1
+  day_encoder: affine
+  activation: relu
+  layer_norm_eps: 0.00001
+  dropout: 0.0
+  head: clipped_scalar_affine
+  loss: pinball
+  weight_decay: 0.0
+  optimizer: AdamW
+  gradient_clip: 1.0
+  positional_encoding: false
+  norm_set: closed_global_euclidean_ball
+  supplementary_layer_caps: same_as_global_radius
+  single_tau_runs: true
+  share_weights_between_taus: false
+  rearrange_quantiles_for_primary_results: false
+  pretraining: false
+  lora: false
+  order_label_supervision: false
+profiles:
+  theory:
+    max_orders: 2
+    demand_upper: 18.5
+    d_model: 36
+    patient_hidden: 32
+    patient_ff: 72
+    day_ff: 32
+    radius: 100.0
+  performance:
+    max_orders: 8
+    demand_upper: 36.5
+    d_model: 128
+    patient_hidden: 128
+    patient_ff: 256
+    day_ff: 256
+    radius: 100.0
+theory_experiments:
+  tau: 0.9
+  train_sizes: [500, 1000, 2000, 4000, 8000, 16000]
+  extension_train_sizes: [32000, 64000, 128000]
+  independent_data_repetitions: 200
+  pipeline_pilot_repetitions: 20
+  model_seeds: [0, 1, 2]
+  seed_selection: minimum_original_training_pinball
+  evaluation_contexts_initial: 50000
+  oracle_labels_visible_to_learner: false
+  validation_refit: false
+  fixed_scaling_and_class_before_sampling: true
+  training:
+    learning_rate: 0.0003
+    batch_size: 128
+    epochs: 300
+    checkpoint_selection: original_full_training_pinball
+    early_stopping_on_test_or_oracle: false
+  estimation:
+    main_scenarios: [S2, S3]
+    hidden_width: 32
+    realizable_calibration: constant_conditional_quantile
+    exact_erm_calibration: bias_only_DAT_subclass
+    numerical_full_DAT: report_as_uncertified_ERM
+    confidence_delta: [0.1, 0.05]
+    report_tail_risk_across_training_datasets: true
+    full_explicit_bound_requires_computed_constants: true
+  approximation:
+    scenarios: [S2, S3, S4]
+    hidden_widths: [16, 32, 64, 128, 256, 512]
+    increase: [patient_encoder_hidden, day_ff_hidden]
+    radius_rule: 100 * (actual_parameters / base_parameters) ** 2
+    objective: squared_error_to_oracle_quantile
+    fresh_input_batches: true
+    record: [oracle_L1, oracle_L2, sampled_max_error, achievable_excess_pinball]
+    claim: achievable_error_not_exact_class_optimum
+    transfer_weights_to_other_experiments: false
+  joint_consistency:
+    scenarios: [S2, S3]
+    hidden_width_rule: max(1, floor(32 * sqrt(T / 2000)))
+    radius_rule: 100 * (actual_parameters / base_parameters) ** 2
+    fixed_width_controls: [32, 128]
+    nested_training_within_repetition: true
+    fixed_dgp_within_curve: true
+    record: [excess_pinball, operational_regret, parameter_count, parameter_norm, complexity_ratio]
+performance_experiments:
+  taus: [0.5, 0.6, 0.7, 0.8, 0.9]
+  optional_tail_tau: 0.95
+  targets: [260, 280, 300, 320, 340]
+  n_train: 2000
+  n_validation: 500
+  n_test: 3000
+  refit_with_validation: true
+  final_fit_days: 2500
+  independent_data_repetitions: 10
+  model_seeds: [0, 1, 2]
+  primary_metric: P_vs_same_fit_sample_SAA
+  secondary_metrics: [operational_regret, pinball, coverage, mean_q, zero_q_share, runtime]
+  selection_metric: validation_pinball
+  same_predeclared_validation_budget: true
+  max_validation_candidates_per_method: 12
+  neural_search:
+    learning_rates: [0.0001, 0.0003, 0.001]
+    batch_sizes: [32, 64, 128, 256]
+    max_epochs: 240
+    patience: 30
+  set_eto_search:
+    learning_rates: [0.0001, 0.0003, 0.001]
+    batch_sizes: [64, 128]
+    family_count_included_in_budget: true
+  paired_test_days: true
+  average_model_seeds_within_data_repetition_first: true
+  comparison:
+    scenarios: [S1, S2, S3, S4]
+    methods: [DAT, SAA, wSAA, Rolling-SAA, Flat-ETO, Set-ETO, LQR, GBQR, DeepQR]
+    set_eto_primary_families: [Normal, HurdleGamma]
+    set_eto_discrete_sensitivity_family: NegativeBinomial_plus_uniform_grid_cell
+    historical_receipt: excluded_no_observed_receipts
+  ablation:
+    scenarios: [S2, S3, S4]
+    variants: [full, no_self_attention, mean_pool, sum_pool, no_day_query]
+    equal_capacity_diagnostic: [mean_pool, sum_pool]
+    equal_capacity_relative_tolerance: 0.05
+    same_input_information: true
+    retrain_every_variant: true
+  information:
+    scenarios: [S1, S2, S3, S4]
+    levels: [L0, L1, L2, L3, L4]
+    fixed_architecture_and_parameter_count: true
+    remove_count_leakage_for_L0: true
+    retrain_every_level: true
+implementation_gates:
+  - new_generator_and_fixed_scaling_export
+  - conditional_distribution_oracle_and_error_reporting
+  - scalar_tau_suite_and_pinball_selection
+  - continuous_remainder_Flat_ETO
+  - continuity_aware_Set_ETO_families
+  - theory_training_and_risk_evaluation_runner
+  - mask_invariance_projection_and_resume_tests
+  - small_six_group_end_to_end_audit
+  - formal_run_manifest_frozen_before_test

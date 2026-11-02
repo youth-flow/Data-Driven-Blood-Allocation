@@ -54,6 +54,10 @@ git config core.hooksPath .githooks
 
 ## 当前工作：纯合成实验
 
+新的[六组实验协议](docs/synthetic_protocol.md)已固定共同 DGP、理论尺寸及标量 DAT 训练方式。
+`synthetic/configs/confirmed_protocol.yaml` 是设计合同，`synthetic/scripts/check_protocol.py`
+负责架构核验。新生成器和六组入口尚待接入；下面的旧 v2 命令不等于执行新协议。
+
 AXID 完整公式、参数及边界见 [synthetic/README.md](synthetic/README.md)。不读取真实表，不从真实模型生成标签。
 
 ```powershell
