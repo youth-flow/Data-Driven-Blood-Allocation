@@ -12,13 +12,31 @@ import sys
 
 ROOT_FILES = {"README.md", "CONTRIBUTING.md", "pyproject.toml", ".gitignore", ".gitattributes"}
 PREFIXES = ("src/", "tests/", "configs/", "docs/", ".github/workflows/")
-MODEL_DIRS = ("DAT", "SAA", "wSAA", "Flat-ETO", "Set-ETO")
+# Historical source prefixes are retained for auditing the existing root commit.
+MODEL_DIRS = (
+    "DAT",
+    "SAA",
+    "wSAA",
+    "Flat-ETO",
+    "Set-ETO",
+    "synthetic",
+    "Historical-Receipt",
+    "SAA/SAA",
+    "SAA/wSAA",
+    "SAA/Rolling-SAA",
+    "ETO/Flat-ETO",
+    "ETO/Set-ETO",
+    "QR/LQR",
+    "QR/GBQR",
+    "QR/DeepQR",
+)
+ROOT_FILES |= {"ETO/README.md", "SAA/README.md", "QR/README.md"}
 PREFIXES += tuple(f"{model}/{part}/" for model in MODEL_DIRS for part in ("src", "tests", "configs", "scripts"))
 ROOT_FILES |= {f"{model}/README.md" for model in MODEL_DIRS}
 ROOT_FILES |= {"data/数据预处理.py", ".githooks/pre-commit", ".githooks/pre-push"}
-SCRIPTS = {"scripts/check_git_privacy.py", "scripts/run_experiments.py"}
+SCRIPTS = {"scripts/check_git_privacy.py", "scripts/run_experiments.py", "scripts/run_synthetic_experiments.py"}
 SOURCE_EXTENSIONS = {".py", ".md", ".yaml", ".yml", ".toml", ".sh"}
-PRIVATE_PARTS = {"__pycache__", "outputs", "results", "artifacts", "checkpoints", ".git"}
+PRIVATE_PARTS = {"__pycache__", "outputs", "results", "artifacts", "checkpoints", "generated", ".git"}
 SECRET_PATTERN = re.compile(
     rb"gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|sk-[A-Za-z0-9_-]{35,}"
     rb"|-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----"

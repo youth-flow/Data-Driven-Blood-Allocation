@@ -83,10 +83,3 @@ constraints:
   bias_bound: 500.0
   layer_norm_gain_bound: 2.0
   layer_norm_shift_bound: 2.0
-three_stage:
-  order_epochs: 15
-  synthetic_epochs: 20
-  scenarios_per_day: 4
-  lora_rank: 4
-  finetune: lora
-  residual_neighbors: 30

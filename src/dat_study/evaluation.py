@@ -44,6 +44,7 @@ def evaluate(predictions, demand, inventory, training_demand, taus, targets):
                     "pinball": float(pinball),
                     "coverage": float((d <= p[:, k]).mean()),
                     "mean_q": float(decision(p[:, k], inventory, target).mean()),
+                    "binding_share": float((decision(p[:, k], inventory, target) == 0).mean()),
                 }
             )
     return rows
@@ -54,3 +55,36 @@ def selection_score(rows):
     if not valid:
         raise ValueError("Every SAA reference cost is zero; cannot select by P")
     return float(np.mean(valid))
+
+
+def evaluate_allocations(allocations, demand, inventory, training_demand, taus, targets):
+    """Evaluate observed actions directly; they are not demand quantile forecasts."""
+    q, d, inventory = (np.asarray(v, float) for v in (allocations, demand, inventory))
+    if q.shape != (len(d), len(taus)) or inventory.shape != d.shape or not len(d):
+        raise ValueError("Invalid allocation evaluation dimensions")
+    if not all(np.isfinite(v).all() for v in (q, d, inventory)) or (q < 0).any() or (d < 0).any():
+        raise ValueError("Invalid observed allocation or demand")
+    rows = []
+    for j, tau in enumerate(taus):
+        reference = higher_quantile(training_demand, tau)
+        for target in targets:
+            deviation = inventory + q[:, j] - d - target
+            value = float((tau * np.maximum(-deviation, 0) + (1 - tau) * np.maximum(deviation, 0)).mean())
+            baseline = float(cost(reference, d, inventory, tau, target).mean())
+            rows.append(
+                {
+                    "tau": float(tau),
+                    "target": float(target),
+                    "days": len(d),
+                    "mean_cost": value,
+                    "saa_cost": baseline,
+                    "P": 1 - value / baseline if baseline > 0 else None,
+                    "P_defined": baseline > 0,
+                    "pinball": None,
+                    "coverage": None,
+                    "mean_q": float(q[:, j].mean()),
+                    "binding_share": float((q[:, j] == 0).mean()),
+                    "output_kind": "allocation",
+                }
+            )
+    return rows

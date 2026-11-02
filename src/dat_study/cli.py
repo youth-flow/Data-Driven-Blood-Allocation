@@ -20,7 +20,7 @@ def main(argv=None):
     audit.add_argument("--data", type=Path, required=True)
     execute = sub.add_parser("run", help="Train and evaluate with a common contract")
     execute.add_argument("--config", default="configs/experiment.yaml")
-    execute.add_argument("--fold", choices=FOLDS, default="val2019")
+    execute.add_argument("--fold", default="val2019")
     execute.add_argument("--methods", nargs="+", choices=METHODS, default=list(METHODS[:5]))
     execute.add_argument("--name", required=True)
     execute.add_argument("--smoke", action="store_true")
@@ -54,7 +54,8 @@ def main(argv=None):
         if args.output.exists():
             raise ValueError("Prediction output exists; refusing to overwrite")
         daily, values, taus = load_local_prediction(args.run, args.method, args.data)
-        result = pd.DataFrame(values, columns=[f"Q_{t:.2f}" for t in taus])
+        prefix = "q" if args.method == "Historical-Receipt" else "Q"
+        result = pd.DataFrame(values, columns=[f"{prefix}_{t:.2f}" for t in taus])
         result.insert(0, "decision_day", daily.decision_day.to_numpy())
         args.output.parent.mkdir(parents=True, exist_ok=True)
         result.to_csv(args.output, index=False)
@@ -67,22 +68,33 @@ def main(argv=None):
 
 
 def model_main(method, default_config, argv=None):
-    """Keep the five original model directories' standalone entrypoints."""
+    """Standalone entrypoint shared by the independent model directories."""
     os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
-    from .config import FOLDS, load_config
+    from .config import load_config
     from .runner import run
 
     parser = argparse.ArgumentParser(prog=f"{method}/scripts/run_experiment.py")
     parser.add_argument("--config", type=Path, default=default_config)
-    parser.add_argument("--fold", choices=FOLDS, default="val2019")
+    parser.add_argument("--fold", default="val2019")
+    parser.add_argument("--data-root", type=Path)
+    parser.add_argument("--output-root", type=Path)
+    parser.add_argument("--seed", type=int)
     parser.add_argument("--name", required=True)
     parser.add_argument("--smoke", action="store_true")
     parser.add_argument("--recipe-dir", type=Path)
     if method == "DAT":
-        parser.add_argument("--three-stage", action="store_true")
+        parser.add_argument("--variant", default="full")
+        parser.add_argument("--information", default="full")
     args = parser.parse_args(argv)
-    selected = "DAT-3stage" if method == "DAT" and args.three_stage else method
-    result = run(load_config(args.config), args.fold, [selected], args.name, args.smoke, args.recipe_dir)
+    config = load_config(args.config)
+    for key in ("data_root", "output_root", "seed"):
+        value = getattr(args, key)
+        if value is not None:
+            config[key] = str(value.resolve()) if isinstance(value, Path) else value
+    if method == "DAT":
+        config["ablation"] = args.variant
+        config["information"] = args.information
+    result = run(config, args.fold, [method], args.name, args.smoke, args.recipe_dir)
     print(f"Completed local run: {result}")
 
 

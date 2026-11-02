@@ -3,7 +3,18 @@ from pathlib import Path
 import yaml
 
 
-METHODS = ("SAA", "wSAA", "Set-ETO", "Flat-ETO", "DAT", "DAT-3stage")
+METHODS = (
+    "SAA",
+    "wSAA",
+    "Set-ETO",
+    "Flat-ETO",
+    "DAT",
+    "Rolling-SAA",
+    "LQR",
+    "GBQR",
+    "DeepQR",
+    "Historical-Receipt",
+)
 FOLDS = ("val2017", "val2018", "val2019", "final2020")
 
 
@@ -44,8 +55,8 @@ def load_config(path, _visited=None):
         raise ValueError("Quantile levels must be in (0, 1)")
     if "loss" in config and config["taus"] != config["loss"]["taus"]:
         raise ValueError("Model and evaluation quantile levels must agree")
-    if "three_stage" in config and config["three_stage"]["finetune"] not in ("lora", "full"):
-        raise ValueError("Unknown fine-tuning mode")
+    if "three_stage" in config:
+        raise ValueError("Retired three-stage configuration: DAT now uses direct daily training only")
     return config
 
 
@@ -54,16 +65,23 @@ def smoke_config(config):
     config["_smoke"] = True
     if "training" in config:
         config["training"].update(epochs=1, batch_size=8, patience=1)
-    if "three_stage" in config:
-        config["three_stage"].update(order_epochs=1, synthetic_epochs=1, scenarios_per_day=1)
     if "wsaa" in config:
         config["wsaa"]["n_estimators"] = 8
+    for section in ("lqr", "gbqr", "rolling_saa"):
+        if section in config and "grid" in config[section]:
+            config[section]["grid"] = {k: v[:1] for k, v in config[section]["grid"].items()}
+    if "gbqr" in config:
+        config["gbqr"]["grid"]["max_iter"] = [5]
+    if "wsaa" in config and "grid" in config["wsaa"]:
+        config["wsaa"]["grid"] = {k: v[:1] for k, v in config["wsaa"]["grid"].items()}
+    if "set_eto" in config and "distributions" in config["set_eto"]:
+        config["set_eto"]["distributions"] = config["set_eto"]["distributions"][:1]
     return config
 
 
 def model_config(config, method):
     """Resolve one model's own file; the root controls only common experiment settings."""
-    base_method = "DAT" if method == "DAT-3stage" else method
+    base_method = method
     if method not in METHODS:
         raise ValueError("Unknown method")
     if "model_configs" in config:
@@ -74,6 +92,7 @@ def model_config(config, method):
             selected[key] = deepcopy(config[key])
         # Optional common runtime overrides, e.g. CPU-only smoke verification.
         selected["training"] = _merge(selected["training"], config.get("training", {}))
+        selected = _merge(selected, config.get("model_overrides", {}).get(method, {}))
         if "loss" in selected:
             selected["loss"]["taus"] = list(selected["taus"])
     else:

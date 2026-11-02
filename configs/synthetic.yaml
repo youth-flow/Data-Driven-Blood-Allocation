@@ -1,0 +1,45 @@
+schema_version: 1
+seed: 0
+taus:
+- 0.5
+- 0.6
+- 0.7
+- 0.8
+- 0.9
+- 0.95
+targets:
+- 260
+- 280
+- 300
+- 320
+- 340
+data_root: ../synthetic/generated/reference
+output_root: ../outputs
+model_configs:
+  DAT: ../DAT/configs/main.yaml
+  SAA: ../SAA/SAA/configs/main.yaml
+  wSAA: ../SAA/wSAA/configs/main.yaml
+  Flat-ETO: ../ETO/Flat-ETO/configs/main.yaml
+  Set-ETO: ../ETO/Set-ETO/configs/main.yaml
+  Rolling-SAA: ../SAA/Rolling-SAA/configs/main.yaml
+  LQR: ../QR/LQR/configs/main.yaml
+  GBQR: ../QR/GBQR/configs/main.yaml
+  DeepQR: ../QR/DeepQR/configs/main.yaml
+model_overrides:
+  wSAA:
+    wsaa:
+      grid:
+        min_samples_leaf:
+        - 5
+        - 10
+        - 20
+        - 50
+        max_features:
+        - 0.33
+        - 1.0
+  Set-ETO:
+    set_eto:
+      distributions:
+      - Normal
+      - NegativeBinomial
+      - HurdleGamma

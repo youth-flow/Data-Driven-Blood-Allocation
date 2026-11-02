@@ -15,7 +15,7 @@ from dat_study.data import FoldData
 def test_completed_run_reload_and_refuse_overwrite(synthetic_fold, config, tmp_path):
     config["data_root"] = str(synthetic_fold.parent)
     config["output_root"] = str(tmp_path / "outputs")
-    methods = ["SAA", "wSAA", "Set-ETO", "Flat-ETO", "DAT", "DAT-3stage"]
+    methods = ["SAA", "wSAA", "Set-ETO", "Flat-ETO", "DAT"]
     root = run(config, "val2019", methods, "roundtrip", smoke=True)
     assert read_json(root / "manifest.json")["complete"]
     for method in methods:

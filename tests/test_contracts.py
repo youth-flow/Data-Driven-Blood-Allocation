@@ -6,8 +6,6 @@ from dat_study.evaluation import evaluate, decision
 from dat_study.training import fit_predict, seed_everything
 from dat_study.config import model_config
 from datransformer.trainer import new_dat
-from datransformer.three_stage import install_lora
-from datransformer.adaptation import merge_lora
 from flat_eto.quantity import independent_mixture_pmf
 from dat_study.synthetic import ConditionalRemainder
 from dat_study.io import read_json, save_json, sha256
@@ -51,7 +49,7 @@ def test_remainder_and_convolution():
         ConditionalRemainder().fit(x, [1.0, 1.0], [2.0, 3.0])
 
 
-def test_dat_empty_and_lora_merge(synthetic_fold, config):
+def test_dat_empty_sets_and_all_parameters_trainable(synthetic_fold, config):
     seed_everything(42)
     data = FoldData(synthetic_fold)
     ds = DailySets(data, "train")
@@ -60,19 +58,10 @@ def test_dat_empty_and_lora_merge(synthetic_fold, config):
     with torch.no_grad():
         before = model(batch)["quantiles"]
     assert torch.isfinite(before).all() and (before.diff(dim=1) >= 0).all()
-    install_lora(model, 4)
-    model.eval()
-    with torch.no_grad():
-        adapted = model(batch)["quantiles"]
-    assert torch.allclose(before, adapted, atol=1e-6)
-    assert not any(p.requires_grad for p in model.patient_encoder.parameters())
-    merge_lora(model)
-    with torch.no_grad():
-        after = model(batch)["quantiles"]
-    assert torch.allclose(before, after, atol=1e-6)
+    assert all(p.requires_grad for p in model.parameters())
 
 
-@pytest.mark.parametrize("method", ["SAA", "wSAA", "Set-ETO", "Flat-ETO", "DAT", "DAT-3stage"])
+@pytest.mark.parametrize("method", ["SAA", "wSAA", "Set-ETO", "Flat-ETO", "DAT"])
 def test_every_method_trains_and_evaluates_synthetic(synthetic_fold, config, method):
     data = FoldData(synthetic_fold)
     prediction, result, artifact = fit_predict(method, data, config)

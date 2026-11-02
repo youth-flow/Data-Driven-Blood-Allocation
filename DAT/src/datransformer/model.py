@@ -160,11 +160,18 @@ class PreNormCrossAttentionBlock(nn.Module):
         activation: str,
         dropout: float,
         layer_norm_eps: float,
+        readout: str = "attention",
     ) -> None:
         super().__init__()
         self.query_norm = nn.LayerNorm(d_model, eps=layer_norm_eps)
         self.memory_norm = nn.LayerNorm(d_model, eps=layer_norm_eps)
-        self.attention = nn.MultiheadAttention(d_model, num_heads, dropout=dropout, batch_first=True)
+        if readout not in {"attention", "mean", "sum"}:
+            raise ValueError("Unknown cross-attention readout")
+        self.readout = readout
+        if readout == "attention":
+            self.attention = nn.MultiheadAttention(d_model, num_heads, dropout=dropout, batch_first=True)
+        else:
+            self.pool_projection = nn.Linear(d_model, d_model)
         self.attention_dropout = nn.Dropout(dropout)
         self.ffn_norm = nn.LayerNorm(d_model, eps=layer_norm_eps)
         self.ffn = nn.Sequential(
@@ -187,14 +194,21 @@ class PreNormCrossAttentionBlock(nn.Module):
         empty = ~patient_mask.any(dim=1)
         safe_mask = patient_mask.clone()
         safe_mask[empty, 0] = True
-        attended, weights = self.attention(
-            query,
-            memory,
-            memory,
-            key_padding_mask=~safe_mask,
-            need_weights=return_attention,
-            average_attn_weights=True,
-        )
+        if self.readout == "attention":
+            attended, weights = self.attention(
+                query,
+                memory,
+                memory,
+                key_padding_mask=~safe_mask,
+                need_weights=return_attention,
+                average_attn_weights=True,
+            )
+        else:
+            pooled = (memory * patient_mask.unsqueeze(-1)).sum(dim=1, keepdim=True)
+            if self.readout == "mean":
+                pooled = pooled / patient_mask.sum(dim=1).clamp_min(1)[:, None, None]
+            attended = self.pool_projection(pooled).expand(-1, day_token.shape[1], -1)
+            weights = None
         attended = attended.masked_fill(empty[:, None, None], 0.0)
         if weights is not None:
             weights = weights.masked_fill(empty[:, None, None], 0.0)
@@ -277,11 +291,23 @@ class DecisionAwareTransformer(nn.Module):
                     activation=str(cross_config.get("activation", "relu")),
                     dropout=float(cross_config.get("dropout", 0.0)),
                     layer_norm_eps=layer_norm_eps,
+                    readout=str(cross_config.get("readout", "attention")),
                 )
                 for _ in range(int(cross_config.get("num_layers", 1)))
             ]
         )
         self.output_norm = nn.LayerNorm(d_model, eps=layer_norm_eps)
+        controls = config.get("input_controls", {})
+        for name, width in (
+            ("day", day_num_dim),
+            ("order_num", order_num_dim),
+            ("order_cat", len(order_cat_cardinalities)),
+        ):
+            values = controls.get(name, [True] * width)
+            if len(values) != width:
+                raise ValueError("Input mask width mismatch")
+            self.register_buffer(f"{name}_gate", torch.tensor(values, dtype=torch.bool), persistent=False)
+        self.drop_set = controls.get("drop_set", False)
         loss_config = config.get("loss", {})
         configured_taus = loss_config.get("taus")
         self.quantile_levels = (
@@ -400,6 +426,14 @@ class DecisionAwareTransformer(nn.Module):
         return torch.cat([batch["day_num"], inventory_context.unsqueeze(-1)], dim=-1)
 
     def forward(self, batch: dict[str, torch.Tensor], return_attention: bool = False) -> dict[str, torch.Tensor | None]:
+        batch = dict(batch)
+        batch["day_num"] = batch["day_num"] * self.day_gate
+        batch["order_num"] = batch["order_num"] * self.order_num_gate
+        batch["order_cat"] = batch["order_cat"] * self.order_cat_gate.to(dtype=torch.long)
+        if self.drop_set:
+            batch["order_num"] = torch.zeros_like(batch["order_num"][:, :1])
+            batch["order_cat"] = torch.zeros_like(batch["order_cat"][:, :1])
+            batch["order_mask"] = torch.zeros_like(batch["order_mask"][:, :1])
         patient_tokens = self.patient_encoder(batch["order_num"], batch["order_cat"])
         if self.patient_stack is not None:
             patient_tokens = self.patient_stack(patient_tokens, batch["order_mask"])

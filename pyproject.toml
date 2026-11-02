@@ -17,19 +17,25 @@ dev = ["pytest>=8,<10", "ruff>=0.8,<1", "build>=1,<2"]
 dat-study = "dat_study.cli:main"
 
 [tool.setuptools]
-packages = ["dat_study", "datransformer", "saa_experiment", "wsaa_experiment", "set_eto", "flat_eto"]
+packages = ["dat_study", "datransformer", "saa_experiment", "wsaa_experiment", "set_eto", "flat_eto", "rolling_saa", "lqr_experiment", "gbqr_experiment", "deep_qr", "axid_synthetic", "historical_receipt"]
 
 [tool.setuptools.package-dir]
 dat_study = "src/dat_study"
 datransformer = "DAT/src/datransformer"
-saa_experiment = "SAA/src/saa_experiment"
-wsaa_experiment = "wSAA/src/wsaa_experiment"
-set_eto = "Set-ETO/src/set_eto"
-flat_eto = "Flat-ETO/src/flat_eto"
+saa_experiment = "SAA/SAA/src/saa_experiment"
+wsaa_experiment = "SAA/wSAA/src/wsaa_experiment"
+set_eto = "ETO/Set-ETO/src/set_eto"
+flat_eto = "ETO/Flat-ETO/src/flat_eto"
+rolling_saa = "SAA/Rolling-SAA/src/rolling_saa"
+lqr_experiment = "QR/LQR/src/lqr_experiment"
+gbqr_experiment = "QR/GBQR/src/gbqr_experiment"
+deep_qr = "QR/DeepQR/src/deep_qr"
+axid_synthetic = "synthetic/src/axid_synthetic"
+historical_receipt = "Historical-Receipt/src/historical_receipt"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src", "data", "DAT/src", "SAA/src", "wSAA/src", "Set-ETO/src", "Flat-ETO/src"]
+pythonpath = ["src", "data", "DAT/src", "SAA/SAA/src", "SAA/wSAA/src", "ETO/Set-ETO/src", "ETO/Flat-ETO/src", "SAA/Rolling-SAA/src", "QR/LQR/src", "QR/GBQR/src", "QR/DeepQR/src", "synthetic/src", "Historical-Receipt/src"]
 addopts = "-ra"
 
 [tool.ruff]

@@ -27,8 +27,8 @@ class FoldData:
     def __init__(self, directory):
         self.directory = Path(directory).resolve()
         self.schema = read_json(self.directory / "data_feature_schema.json")
-        if self.schema.get("schema_version") != "morning_t_v1":
-            raise ValueError("Only morning_t_v1 derived data are accepted")
+        if self.schema.get("schema_version") not in {"morning_t_v1", "synthetic_axid_v1"}:
+            raise ValueError("Unsupported data contract")
         manifest = read_json(self.directory / "manifest.json")
         if not manifest.get("complete"):
             raise ValueError("Incomplete preprocessing output")
@@ -51,6 +51,10 @@ class FoldData:
             "real_demand",
             "tag",
             "order_key",
+            "D_new",
+            "known_recent_D",
+            "latent_shock",
+            "oracle_quantile",
         }
         if inputs & forbidden or "It" in self.day_cols:
             raise ValueError("Diagnostic or outcome fields cannot be model inputs")
@@ -129,7 +133,7 @@ class FoldData:
 
     def audit_summary(self):
         return {
-            "schema": "morning_t_v1",
+            "schema": self.schema["schema_version"],
             "data_identity": self.identity,
             "evaluation_role": self.eval_role,
             "train_days": len(self.daily_split("train")),

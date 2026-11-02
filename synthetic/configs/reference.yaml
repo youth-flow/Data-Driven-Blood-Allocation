@@ -1,0 +1,13 @@
+schema_version: 1
+generator_version: 2
+validation_start: '2020-01-01'
+data_seed: 20261102
+scenario: S2
+n_train: 2000
+n_validation: 500
+n_test: 3000
+max_visible_orders: 32
+max_new_orders: 12
+empty_set_probability: 0.05
+inventory_center: 315.0
+inventory_half_width: 70.0

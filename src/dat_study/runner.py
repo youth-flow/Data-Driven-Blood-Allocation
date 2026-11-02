@@ -11,7 +11,7 @@ import pandas as pd
 import joblib
 from .config import METHODS, smoke_config, model_config
 from .data import FoldData
-from .evaluation import evaluate
+from .evaluation import evaluate, evaluate_allocations
 from .io import read_json, save_json, sha256
 from .training import fit_predict
 
@@ -23,6 +23,8 @@ def recipe_signature(config):
 
 
 def run(config, fold, methods, run_name, smoke=False, recipe_dir=None):
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,79}", fold):
+        raise ValueError("Fold must be a simple directory name")
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,79}", run_name):
         raise ValueError("Run name must be a simple directory name")
     if any(method not in METHODS for method in methods):
@@ -33,7 +35,7 @@ def run(config, fold, methods, run_name, smoke=False, recipe_dir=None):
     if smoke:
         data.limit_for_smoke()
     if data.eval_role == "test" and recipe_dir is None:
-        raise ValueError("Use a frozen development run's recipes for final2020")
+        raise ValueError("Use a frozen development run's recipes for test evaluation")
     output = Path(config["output_root"]) / run_name
     if output.exists():
         raise ValueError("Run directory exists; choose a fresh run name")
@@ -65,7 +67,8 @@ def run(config, fold, methods, run_name, smoke=False, recipe_dir=None):
         save_json(folder / "config.json", selected)
         prediction, result, artifact = fit_predict(method, data, selected, recipes.get(method))
         daily = data.daily_split("eval")
-        rows = evaluate(
+        is_action = method == "Historical-Receipt"
+        rows = (evaluate_allocations if is_action else evaluate)(
             prediction,
             daily.D.to_numpy(),
             daily.It.to_numpy(),
@@ -77,9 +80,10 @@ def run(config, fold, methods, run_name, smoke=False, recipe_dir=None):
             row.update(method=method, seed=config["seed"], fold=fold, smoke=smoke)
         all_metrics.extend(rows)
         # Local outputs are ignored by Git. No raw IDs, source strings or order keys.
-        predictions = pd.DataFrame(prediction, columns=[f"Q_{t:.2f}" for t in config["taus"]])
+        prefix = "q" if is_action else "Q"
+        predictions = pd.DataFrame(prediction, columns=[f"{prefix}_{t:.2f}" for t in config["taus"]])
         predictions.insert(0, "decision_day", daily.decision_day.to_numpy())
-        predictions.to_csv(folder / "daily_quantiles.csv", index=False)
+        predictions.to_csv(folder / ("daily_allocations.csv" if is_action else "daily_quantiles.csv"), index=False)
         recipe = {
             "method": method,
             "signature": recipe_signature(selected),
@@ -89,8 +93,8 @@ def run(config, fold, methods, run_name, smoke=False, recipe_dir=None):
             "source_data_identity": data.identity,
             "smoke": smoke,
         }
-        if "three_stage" in result:
-            recipe["three_stage"] = result["three_stage"]
+        if "selection" in result:
+            recipe["selection"] = result["selection"]
         save_json(folder / "recipe.json", recipe)
         save_json(folder / "training.json", result)
         save_json(folder / "metrics.json", rows)

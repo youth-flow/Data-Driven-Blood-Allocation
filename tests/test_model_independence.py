@@ -9,9 +9,12 @@ import sys
 import pytest
 
 from dat_study.config import load_config, model_config
+from dat_study.registry import MODEL_PATHS
 
 
-@pytest.mark.parametrize("method", ["SAA", "wSAA", "Flat-ETO", "Set-ETO", "DAT", "DAT-3stage"])
+@pytest.mark.parametrize(
+    "method", ["SAA", "wSAA", "Flat-ETO", "Set-ETO", "DAT", "Rolling-SAA", "LQR", "GBQR", "DeepQR"]
+)
 def test_selected_model_never_imports_siblings(synthetic_fold, config, tmp_path, method):
     config_file = tmp_path / "config.json"
     config_file.write_text(json.dumps(config), encoding="utf-8")
@@ -24,7 +27,8 @@ import numpy as np
 
 method, fold, config_path = sys.argv[1:]
 packages = {'SAA': 'saa_experiment', 'wSAA': 'wsaa_experiment', 'Flat-ETO': 'flat_eto',
-            'Set-ETO': 'set_eto', 'DAT': 'datransformer', 'DAT-3stage': 'datransformer'}
+            'Set-ETO': 'set_eto', 'DAT': 'datransformer',
+            'Rolling-SAA': 'rolling_saa', 'LQR': 'lqr_experiment', 'GBQR': 'gbqr_experiment', 'DeepQR': 'deep_qr'}
 forbidden = set(packages.values()) - {packages[method]}
 
 class BlockSiblingModels(importlib.abc.MetaPathFinder):
@@ -63,7 +67,7 @@ def test_model_configs_share_data_but_own_parameters():
     root = Path(__file__).resolve().parents[1]
     experiment = load_config(root / "configs/experiment.yaml")
     for method in ["DAT", "SAA", "wSAA", "Flat-ETO", "Set-ETO"]:
-        standalone = load_config(root / method / "configs/main.yaml")
+        standalone = load_config(root / MODEL_PATHS[method] / "configs/main.yaml")
         selected = model_config(experiment, method)
         assert selected == standalone
         assert Path(selected["data_root"]) == root / "data/processed"

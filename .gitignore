@@ -2,6 +2,7 @@
 /data/*
 !/data/数据预处理.py
 /outputs/
+/synthetic/generated/
 /参考文献/
 /理论保证/
 **/outputs/
