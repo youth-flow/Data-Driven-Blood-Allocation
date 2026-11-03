@@ -45,6 +45,10 @@ def to_device(batch, device):
 
 def score_prediction(prediction, dataset, data, config):
     daily = dataset.daily
+    if config.get("selection_metric") == "pinball":
+        residual = daily.D.to_numpy()[:, None] - prediction
+        taus = np.asarray(config["taus"])[None, :]
+        return -float(np.maximum(taus * residual, (taus - 1) * residual).mean())
     return selection_score(
         evaluate(
             prediction,

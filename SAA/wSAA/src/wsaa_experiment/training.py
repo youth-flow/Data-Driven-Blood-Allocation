@@ -20,7 +20,7 @@ def fit_predict(data, config, recipe=None):
         weights = estimator.weights(data.context(evaluation.daily))
         prediction = predict_weighted_quantiles(weights, demand, config["taus"])
         score = validation_score(prediction, data, config) if data.eval_role == "validation" else None
-        trials.append({"parameters": params, "validation_mean_P": score})
+        trials.append({"parameters": params, "validation_score": score})
         if best is None or (score is not None and score > best[0]):
             best = (score, params, prediction, estimator)
     _, params, prediction, estimator = best

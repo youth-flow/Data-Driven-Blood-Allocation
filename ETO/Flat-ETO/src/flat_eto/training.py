@@ -58,7 +58,7 @@ def fit_flat(data, config, epochs, validation=None):
             score = score_prediction(
                 predict_flat(model, quantity, remainder, validation, data, config), validation, data, config
             )
-            row["validation_mean_P"] = score
+            row["validation_score"] = score
             if score > best:
                 best, best_epoch, stale, state = score, epoch + 1, 0, cpu_state(model)
             else:

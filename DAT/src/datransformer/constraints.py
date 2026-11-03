@@ -12,6 +12,17 @@ def project_parameters(model: nn.Module, config: dict[str, Any]) -> None:
     if not bool(constraint.get("enabled", True)):
         return
 
+    radius = float(constraint["global_parameter_radius"])
+    if radius <= 0:
+        raise ValueError("Parameter radius must be positive")
+    caps = ("operator_norm_bound", "bias_bound", "layer_norm_gain_bound", "layer_norm_shift_bound")
+    if all(float(constraint[k]) >= radius for k in caps):
+        norm = torch.sqrt(sum(p.detach().square().sum() for p in model.parameters()))
+        if norm > radius:
+            for parameter in model.parameters():
+                parameter.mul_(radius / norm)
+        return
+
     operator_bound = float(constraint["operator_norm_bound"])
     bias_bound = float(constraint["bias_bound"])
     layer_norm_gain_bound = float(constraint["layer_norm_gain_bound"])

@@ -1,4 +1,4 @@
-"""Versioned, permutation-invariant single-period simulator, independent of every predictor."""
+"""Version 3: bounded IID compact AXID; no real-data or predictor dependency."""
 
 from pathlib import Path
 import hashlib
@@ -7,120 +7,113 @@ import numpy as np
 import pandas as pd
 import yaml
 
-SCENARIOS = {"S1": (0.0, 0.0, 0.0), "S2": (1.0, 0.0, 0.0), "S3": (1.0, 1.5, 0.0), "S4": (1.0, 1.5, 0.8)}
-KINDS = ["急救用血", "手术备血", "病房用血", "病房备血", "其他"]
-NUM_BASIC = ["delta", "申请用血量", "申请备血量"]
-NUM_CLINICAL = ["血红蛋白", "红细胞压积", "planned_use_offset_days", "planned_use_missing"]
-CAT_BASIC = ["输血要求分组", "科室高频分组"]
-DAY_CONTEXT = ["dow_sin", "dow_cos", "is_weekend", "scheduled_load", "emergency_pressure"]
-DAY_BASIC = ["n_orders", "request_use_sum", "request_reserve_sum", "order_age_mean"]
-DAY_CLINICAL = ["hb_mean", "hct_mean", "urgent_request_rate", "surgery_prepare_rate"]
+SCENARIOS = {
+    "S1": (0.0, 0.0, 0.0),
+    "S2": (1.0, 0.0, 0.0),
+    "S3": (1.0, 1.5, 0.0),
+    "S4": (1.0, 1.5, 0.8),
+    "C0": (0.0, 0.0, 0.0),
+}
+NUM_BASIC = ["申请用血量", "申请备血量"]
+NUM_CLINICAL = ["clinical_risk"]
+CAT_BASIC = []
+DAY_CONTEXT = ["scheduled_load", "emergency_pressure"]
+DAY_BASIC = ["n_orders", "request_use_sum", "request_reserve_sum"]
+DAY_CLINICAL = ["risk_mean", "risk_second_moment"]
 
 
 def sigmoid(value):
-    return 1.0 / (1.0 + np.exp(-np.clip(value, -30, 30)))
+    return 1 / (1 + np.exp(-np.clip(value, -30, 30)))
 
 
 def coefficients(config):
-    if config["scenario"] not in SCENARIOS:
-        raise ValueError("Scenario must be S1, S2, S3 or S4")
     return SCENARIOS[config["scenario"]]
 
 
 def make_orders(rng, context, config):
-    n = rng.binomial(config["max_visible_orders"], sigmoid(-0.2 + 0.4 * context["scheduled_load"]))
-    if rng.random() < config.get("empty_set_probability", 0.05):
-        n = 0
-    # Allow empty sets naturally; every observable is generated before demand randomness.
-    kind = rng.choice(KINDS, size=n, p=[0.15, 0.30, 0.30, 0.15, 0.10])
+    maximum = config["max_visible_orders"]
+    n = (
+        maximum
+        if config["scenario"] == "C0"
+        else 1 + rng.binomial(maximum - 1, sigmoid(-0.2 + 0.4 * context["scheduled_load"]))
+    )
     risk = rng.beta(2, 3, size=n)
-    use = 0.5 * rng.binomial(12, 0.25 + 0.25 * risk)
-    reserve = 0.5 * rng.binomial(16, 0.15 + 0.20 * risk)
-    hb = np.clip(160 - 100 * risk + rng.normal(0, 8, n), 40, 180)
-    missing = rng.random(n) < 0.15
-    planned = rng.choice([-1, 0, 1, 2], size=n, p=[0.1, 0.5, 0.3, 0.1])
     return pd.DataFrame(
         {
-            "delta": rng.integers(0, 3, size=n),
-            "申请用血量": use,
-            "申请备血量": reserve,
-            "血红蛋白": hb,
-            "红细胞压积": np.clip(0.003 * hb + rng.normal(0, 0.02, n), 0.1, 0.55),
-            "planned_use_offset_days": np.where(missing, 0, planned),
-            "planned_use_missing": missing.astype(int),
-            "输血要求分组": kind,
-            "科室高频分组": [f"dept_{d}" for d in rng.integers(0, 6, size=n)],
+            "申请用血量": 0.5 * rng.binomial(12, 0.25 + 0.25 * risk),
+            "申请备血量": 0.5 * rng.binomial(16, 0.15 + 0.2 * risk),
+            "clinical_risk": risk,
         }
     )
 
 
 def order_parameters(orders, context, config):
+    if config["scenario"] == "C0":
+        return np.full(len(orders), np.log(0.35 / 0.65)), np.full(len(orders), 0.4)
     alpha, gamma, _ = coefficients(config)
-    use, reserve = orders["申请用血量"].to_numpy(), orders["申请备血量"].to_numpy()
-    risk = np.clip((160 - orders["血红蛋白"].to_numpy()) / 100, 0, 1)
-    urgent = orders["输血要求分组"].eq("急救用血").to_numpy()
-    surgery = orders["输血要求分组"].eq("手术备血").to_numpy()
-    planned_today = orders.planned_use_offset_days.eq(0).to_numpy() & orders.planned_use_missing.eq(0).to_numpy()
-    # Same-department peer composition, excluding the order itself. No learned network.
-    dept = orders["科室高频分组"].to_numpy()
-    peers = (dept[:, None] == dept[None, :]) & ~np.eye(len(orders), dtype=bool)
-    peer_risk = (peers @ risk) / np.maximum(peers.sum(axis=1), 1)
+    use, reserve = orders["申请用血量"].to_numpy(float), orders["申请备血量"].to_numpy(float)
+    risk = orders.clinical_risk.to_numpy(float)
+    u = use / 6
+    kernel = np.exp(-((u[:, None] - u[None, :]) ** 2) / (2 * 0.25**2))
+    np.fill_diagonal(kernel, 0)
+    peer = (kernel * risk[None, :]).sum(1) / np.maximum(kernel.sum(1), 1e-12)
     logit = (
         -2
         + 0.35 * np.log1p(use)
         + 0.15 * np.log1p(reserve)
         + 1.2 * risk
-        + 0.5 * urgent
-        - 0.25 * orders.delta.to_numpy()
-        + 0.4 * planned_today
-        + alpha * (0.8 * context["scheduled_load"] * surgery + 0.6 * context["emergency_pressure"] * urgent)
-        + gamma * peer_risk * risk
+        + alpha * (0.8 * context["scheduled_load"] * u + 0.6 * context["emergency_pressure"] * risk)
+        + gamma * risk * peer
     )
-    quantity_p = sigmoid(-0.5 + 0.3 * np.log1p(use) + 0.15 * np.log1p(reserve) + 0.7 * risk)
-    return logit, quantity_p
+    return logit, sigmoid(-0.5 + 0.3 * np.log1p(use) + 0.15 * np.log1p(reserve) + 0.7 * risk)
+
+
+def new_parameters(context, config, shock):
+    if config["scenario"] == "C0":
+        return np.zeros_like(shock) + 0.3, np.zeros_like(shock) + 0.4
+    rho = coefficients(config)[2]
+    return (
+        sigmoid(-0.7 + 0.4 * context["emergency_pressure"] + 0.3 * context["scheduled_load"] + rho * shock),
+        sigmoid(-0.4 + 0.5 * context["emergency_pressure"] + 0.2 * rho * shock),
+    )
 
 
 def sample_demand(orders, context, config, rng, repeats=1):
-    """Resample only future uncertainty at fixed observable inputs (also used by MC oracle)."""
-    _, _, rho = coefficients(config)
-    logit, quantity_p = order_parameters(orders, context, config)
+    rho = coefficients(config)[2]
+    logit, qp = order_parameters(orders, context, config)
     shock = rng.normal(size=repeats)
     issued = rng.random((repeats, len(orders))) < sigmoid(logit[None, :] + rho * shock[:, None])
-    quantity = 0.5 * (1 + rng.binomial(5, quantity_p, size=(repeats, len(orders))))
-    contributions = issued * quantity
-    new_p = sigmoid(-0.7 + 0.4 * context["emergency_pressure"] + 0.3 * context["scheduled_load"] + rho * shock)
-    n_new = rng.binomial(config["max_new_orders"], new_p)
-    new_quantity_p = sigmoid(-0.4 + 0.5 * context["emergency_pressure"] + 0.2 * rho * shock)
-    # Sum of n_new independent (0.5 + 0.5 Binomial(5,p)) quantities.
-    new_demand = 0.5 * (n_new + rng.binomial(5 * n_new, new_quantity_p))
-    return contributions, new_demand
+    quantity = 0.5 * (1 + rng.binomial(5, qp, size=(repeats, len(orders))))
+    probability, amount = new_parameters(context, config, shock)
+    count = rng.binomial(config["max_new_orders"], probability)
+    new = 0.5 * (count + rng.binomial(5 * count, amount))
+    new += rng.uniform(0, config.get("remainder_width", 0.5), repeats)
+    return issued * quantity, new
 
 
-def oracle_quantiles(orders, context, config, taus, repeats=20000, seed=10000):
-    """Full-information conditional MC oracle; never conditions on the realized shock/outcomes."""
-    contributions, new = sample_demand(orders, context, config, np.random.default_rng(seed), repeats)
-    return np.quantile(contributions.sum(axis=1) + new, taus, method="higher")
+def oracle_quantiles(orders, context, config, taus, repeats=None, seed=None):
+    from .oracle import conditional_pmf, mixture_quantiles
+
+    pmf, _ = conditional_pmf(orders, context, config)
+    return mixture_quantiles(pmf, taus, config.get("remainder_width", 0.5))
 
 
 def simulate_split(config, count, start, seed, label):
     split_key = [int(v) for v in seed.generate_state(4)]
     rows, days = [], []
     for day in pd.date_range(start, periods=count):
-        # A day owns its random streams. Extending the training window cannot
-        # change any overlapping day or either holdout set.
-        day_key = day.toordinal()
-        feature_rng = np.random.default_rng(np.random.SeedSequence([*split_key, day_key, 0]))
-        demand_rng = np.random.default_rng(np.random.SeedSequence([*split_key, day_key, 1]))
-        context = {"scheduled_load": feature_rng.uniform(-1, 1), "emergency_pressure": feature_rng.uniform(-1, 1)}
-        orders = make_orders(feature_rng, context, config)
+        key = day.toordinal()
+        rng = np.random.default_rng(np.random.SeedSequence([*split_key, key, 0]))
+        demand_rng = np.random.default_rng(np.random.SeedSequence([*split_key, key, 1]))
+        context = dict(zip(DAY_CONTEXT, rng.uniform(-1, 1, 2)))
+        orders = make_orders(rng, context, config)
         inventory = (
             config["inventory_center"]
             + 20 * context["scheduled_load"]
-            + feature_rng.uniform(-config["inventory_half_width"], config["inventory_half_width"])
+            + rng.uniform(-config["inventory_half_width"], config["inventory_half_width"])
         )
         contributions, new = sample_demand(orders, context, config, demand_rng)
-        known, new = float(contributions.sum()), float(new[0])
-        n = len(orders)
+        known = float(contributions.sum())
         days.append(
             {
                 "decision_day": day,
@@ -128,42 +121,27 @@ def simulate_split(config, count, start, seed, label):
                 "snapshot_day": day - pd.Timedelta(days=1),
                 "information_cutoff": day,
                 "source_split": label,
-                "D": known + new,
-                "D_new": new,
+                "D": known + float(new[0]),
+                "D_new": float(new[0]),
                 "known_recent_D": known,
                 "It": inventory,
-                "n_orders": n,
+                "n_orders": len(orders),
                 "supervised_eligible": True,
                 "demand_observed": True,
                 "inventory_observed": True,
-                "dow_sin": np.sin(2 * np.pi * day.dayofweek / 7),
-                "dow_cos": np.cos(2 * np.pi * day.dayofweek / 7),
-                "is_weekend": float(day.dayofweek >= 5),
                 **context,
                 "request_use_sum": float(orders["申请用血量"].sum()),
                 "request_reserve_sum": float(orders["申请备血量"].sum()),
-                "order_age_mean": float(orders.delta.mean() + 1) if n else 0.0,
-                "hb_mean": float(orders["血红蛋白"].mean()) if n else 0.0,
-                "hct_mean": float(orders["红细胞压积"].mean()) if n else 0.0,
-                "urgent_request_rate": float(orders["输血要求分组"].eq("急救用血").mean()) if n else 0.0,
-                "surgery_prepare_rate": float(orders["输血要求分组"].eq("手术备血").mean()) if n else 0.0,
+                "risk_mean": float(orders.clinical_risk.mean()),
+                "risk_second_moment": float(orders.clinical_risk.pow(2).mean()),
             }
         )
         orders["decision_day"] = day
-        orders["order_key"] = [f"synthetic-{label}-{day_key}-{j}" for j in range(n)]
+        orders["order_key"] = [f"synthetic-{label}-{key}-{j}" for j in range(len(orders))]
         orders["real_demand"] = contributions[0]
         orders["order_label_observed"] = True
         rows.append(orders)
     return pd.DataFrame(days), pd.concat(rows, ignore_index=True)
-
-
-def scales(frame, columns):
-    result = {}
-    for col in columns:
-        values = frame[col].to_numpy(float)
-        mean, std = (float(values.mean()), float(values.std())) if len(values) else (0.0, 1.0)
-        result[col] = {"mean": mean, "std": std if std > 1e-8 else 1.0}
-    return result
 
 
 def save_json(path, value):
@@ -174,19 +152,52 @@ def file_hash(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def support_upper(config):
+    return 3 * (config["max_visible_orders"] + config["max_new_orders"]) + config.get("remainder_width", 0.5)
+
+
+def fixed_scalers(config):
+    m = config["max_visible_orders"]
+    bounds = {
+        "申请用血量": (0, 6),
+        "申请备血量": (0, 8),
+        "clinical_risk": (0, 1),
+        "scheduled_load": (-1, 2),
+        "emergency_pressure": (-1, 2),
+        "n_orders": (0, m),
+        "request_use_sum": (0, 6 * m),
+        "request_reserve_sum": (0, 8 * m),
+        "risk_mean": (0, 1),
+        "risk_second_moment": (0, 1),
+        "It": (
+            config["inventory_center"] - 20 - config["inventory_half_width"],
+            40 + 2 * config["inventory_half_width"],
+        ),
+    }
+
+    def section(cols):
+        return {c: {"mean": bounds[c][0], "std": bounds[c][1]} for c in cols}
+
+    return {
+        "order": section(NUM_BASIC + NUM_CLINICAL),
+        "day": section(DAY_CONTEXT + DAY_BASIC + DAY_CLINICAL),
+        "inventory": section(["It"]),
+    }
+
+
 def export_fold(folder, train, evaluation, role, config):
     folder.mkdir(parents=True, exist_ok=False)
     train_daily, train_orders = train
     eval_daily, eval_orders = evaluation
     daily = pd.concat([train_daily.assign(split="train"), eval_daily.assign(split=role)], ignore_index=True)
     orders = pd.concat([train_orders, eval_orders], ignore_index=True)
-    num, cat, day_cols = NUM_BASIC + NUM_CLINICAL, CAT_BASIC, DAY_CONTEXT + DAY_BASIC + DAY_CLINICAL
     train_end = str(train_daily.decision_day.max().date())
     schema = {
-        "schema_version": "synthetic_axid_v1",
-        "order_num_cols": num,
-        "order_cat_cols": cat,
-        "day_feature_cols": day_cols,
+        "schema_version": "synthetic_axid_v2",
+        "generator_version": 3,
+        "order_num_cols": NUM_BASIC + NUM_CLINICAL,
+        "order_cat_cols": [],
+        "day_feature_cols": DAY_CONTEXT + DAY_BASIC + DAY_CLINICAL,
         "excluded_from_model_inputs": [
             "D",
             "D_new",
@@ -195,25 +206,26 @@ def export_fold(folder, train, evaluation, role, config):
             "order_key",
             "latent_shock",
             "source_split",
+            "oracle_quantile",
         ],
         "information_groups": {
             "day_context": DAY_CONTEXT,
             "day_basic": DAY_BASIC,
             "day_clinical": DAY_CLINICAL,
             "order_basic_num": NUM_BASIC,
-            "order_basic_cat": CAT_BASIC,
+            "order_basic_cat": [],
             "order_clinical_num": NUM_CLINICAL,
         },
         "feature_dependencies": {},
-        "demand_support_upper": 3 * (config["max_visible_orders"] + config["max_new_orders"]),
+        "demand_support_upper": support_upper(config),
+        "max_orders": config["max_visible_orders"],
+        "scaling": "fixed_known_support",
+        "iid_days": True,
     }
     state = {
         "feature_fit_end": train_end,
-        "numeric_scalers": {
-            "order": scales(train_orders, num),
-            "day": scales(train_daily, day_cols),
-            "inventory": scales(train_daily, ["It"]),
-        },
+        "numeric_scalers": fixed_scalers(config),
+        "scaling_source": "predeclared_support_not_fitted_to_samples",
     }
     split = {
         "train_start": str(train_daily.decision_day.min().date()),
@@ -242,56 +254,47 @@ def export_fold(folder, train, evaluation, role, config):
 
 def generate(config, output):
     config = dict(config)
-    if config.get("schema_version") != 1:
-        raise ValueError("Unsupported synthetic generator configuration")
-    if config.get("generator_version", 2) != 2:
-        raise ValueError("Unsupported synthetic random-stream version")
-    config["generator_version"] = 2
-    config.setdefault("validation_start", "2020-01-01")
-    coefficients(config)
-    if not 0 <= config.get("empty_set_probability", 0.05) < 1:
-        raise ValueError("Empty-set probability must be in [0,1)")
+    if config.get("schema_version") != 1 or config.get("generator_version") != 3:
+        raise ValueError("Use the current version-3 synthetic configuration")
+    if config["scenario"] not in SCENARIOS:
+        raise ValueError("Unknown DGP scenario")
     for key in ("n_train", "n_validation", "n_test", "max_visible_orders", "max_new_orders"):
         if not isinstance(config[key], int) or config[key] < (0 if key == "max_new_orders" else 1):
-            raise ValueError(f"Invalid positive count: {key}")
+            raise ValueError(f"Invalid count: {key}")
+    if config.get("remainder_width", 0.5) not in (0.0, 0.5):
+        raise ValueError("Use full-cell continuous demand or the explicitly discrete sensitivity")
     if config["inventory_center"] <= config["inventory_half_width"] + 20 or config["inventory_half_width"] < 0:
-        raise ValueError("Inventory support must be nonnegative")
+        raise ValueError("Inventory support must be positive")
     output = Path(output).resolve()
     if output.exists():
         raise ValueError("Synthetic output already exists; choose a fresh directory")
     seeds = np.random.SeedSequence(config["data_seed"]).spawn(3)
-    anchor = pd.Timestamp(config["validation_start"])
-    if pd.isna(anchor) or anchor != anchor.normalize() or anchor.tz is not None:
-        raise ValueError("Validation start must be a valid timezone-naive calendar day")
+    anchor = pd.Timestamp(config.get("validation_start", "2020-01-01"))
     starts = [anchor - pd.Timedelta(days=config["n_train"]), anchor, anchor + pd.Timedelta(days=config["n_validation"])]
-    splits = []
-    for label, key, seed, start in zip(
-        ("train", "validation", "test"), ("n_train", "n_validation", "n_test"), seeds, starts
-    ):
-        splits.append(simulate_split(config, config[key], start, seed, label))
+    splits = [
+        simulate_split(config, config[key], start, seed, label)
+        for label, key, seed, start in zip(
+            ("train", "validation", "test"), ("n_train", "n_validation", "n_test"), seeds, starts
+        )
+    ]
     output.mkdir(parents=True, exist_ok=False)
     (output / "generation.yaml").write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
     export_fold(output / "validation", splits[0], splits[1], "validation", config)
     refit = tuple(pd.concat([splits[0][i], splits[1][i]], ignore_index=True) for i in (0, 1))
     export_fold(output / "test", refit, splits[2], "test", config)
-    summary = []
-    for label, (daily, orders) in zip(("train", "validation", "test"), splits):
-        summary.append(
-            {
-                "split": label,
-                "days": len(daily),
-                "orders": len(orders),
-                "mean_D": float(daily.D.mean()),
-                "std_D": float(daily.D.std(ddof=0)),
-                "q50_D": float(daily.D.quantile(0.5, interpolation="higher")),
-                "q90_D": float(daily.D.quantile(0.9, interpolation="higher")),
-                "q95_D": float(daily.D.quantile(0.95, interpolation="higher")),
-                "max_D": float(daily.D.max()),
-                "mean_I": float(daily.It.mean()),
-                "mean_orders_per_day": float(daily.n_orders.mean()),
-                "empty_set_days": int(daily.n_orders.eq(0).sum()),
-                "new_demand_share": float(daily.D_new.sum() / daily.D.sum()) if daily.D.sum() else None,
-            }
-        )
+    summary = [
+        {
+            "split": label,
+            "days": len(d),
+            "orders": len(o),
+            "mean_D": float(d.D.mean()),
+            "std_D": float(d.D.std(ddof=0)),
+            "mean_I": float(d.It.mean()),
+            "max_D": float(d.D.max()),
+            "empty_set_days": int(d.n_orders.eq(0).sum()),
+            "new_demand_share": float(d.D_new.sum() / d.D.sum()),
+        }
+        for label, (d, o) in zip(("train", "validation", "test"), splits)
+    ]
     save_json(output / "summary.json", summary)
     return summary

@@ -14,7 +14,7 @@
 ```text
 DAT/                         # 主模型、结构消融、信息消融
 ETO/
-  Set-ETO/                   # Normal / NegativeBinomial / HurdleGamma 内部分布族
+  Set-ETO/                   # Normal / HurdleGamma / NB及连续平滑NB分布族
   Flat-ETO/
 SAA/
   SAA/
@@ -46,40 +46,42 @@ outputs/                    # 本机结果、配方和权重，Git 忽略
 Python >= 3.10，在工程根目录执行：
 
 ```powershell
-python -m pip install -e ".[dev]"
+python -m pip install -e ".[dev,plots]"
 git config core.hooksPath .githooks
 ```
 
 无需安装本工程也可通过源码脚本运行；模型入口按自身位置寻找公共代码，从其他工作目录调用也有效。
 
-## 当前工作：纯合成实验
+## 当前工作：简化 DAT 与纯合成六组实验
 
-新的[六组实验协议](docs/synthetic_protocol.md)已固定共同 DGP、理论尺寸及标量 DAT 训练方式。
-`synthetic/configs/confirmed_protocol.yaml` 是设计合同，`synthetic/scripts/check_protocol.py`
-负责架构核验。新生成器和六组入口尚待接入；下面的旧 v2 命令不等于执行新协议。
+按2026-11-03本机理论PDF实现唯一简化DAT：订单MLP、自注意力残差、日级仿射编码、
+交叉注意力残差、日级FFN残差、截断标量线性头。没有订单FFN、额外输出LN或三步走。
+五个τ各训练独立网络，主结果不排序修正。结构说明见[DAT/README.md](DAT/README.md)。
 
-AXID 完整公式、参数及边界见 [synthetic/README.md](synthetic/README.md)。不读取真实表，不从真实模型生成标签。
+[六组实验协议](docs/synthetic_protocol.md)及生成器v3均已实现：
+理论三组为估计误差、逼近能力、联合一致性；性能三组为基准比较、结构消融、信息价值。
+机器合同在 `synthetic/configs/confirmed_protocol.yaml`。
+DGP完全人工，有界、IID、非空集合、固定支持变换；不读取真实数据。
+
+```powershell
+python synthetic/scripts/check_protocol.py
+python scripts/run_synthetic_experiments.py --family all --smoke --name six_group_smoke --device cpu --threads 1
+python scripts/run_synthetic_experiments.py --family theory --name theory_main
+python scripts/run_synthetic_experiments.py --family performance --name performance_main
+```
+
+- 主τ为0.5、0.6、0.7、0.8、0.9；target为260、280、300、320、340。
+- 性能比较包含9种方法；Historical Receipt在合成实验中不伪造。
+- 性能配置只用验证pinball选择，在2500日从头重训后评价3000个独立测试场景。
+- 理论组分别研究固定类、容量增长、容量与样本联合增长；不把数值神经训练当成已认证精确ERM。
+- `--smoke` 只检验流程。`--resume` 验证并跳过完成任务；中断任务从头重跑，保留原attempt。
+- 正式默认理论200个独立数据重复、性能10个，各随机模型3个初始化，计算量较大。
+- 计划和参数已冻结；改变代码或参数必须换运行名。更多选项和输出见[synthetic/README.md](synthetic/README.md)。
+
+独立模型入口需要先生成合成数据：
 
 ```powershell
 python synthetic/scripts/generate.py --scenario S2 --output synthetic/generated/reference
-python scripts/run_synthetic_experiments.py --group all --name synthetic_dev --seeds 0 1 2 3 4
-python scripts/run_synthetic_experiments.py --group all --fold test --name synthetic_test --seeds 0 1 2 3 4 --recipe-root outputs/synthetic_dev
-```
-
-- A：独立基准模型；LQR/GBQR 分别运行 basic 与 enhanced 输入。
-- B：DAT 内部结构/损失消融。
-- C：固定宽度 DAT 的 L0–L4 信息阶梯，每个等级重新训练。
-- 合成共同配置在 `configs/synthetic.yaml`，τ 为 0.5、0.6、0.7、0.8、0.9、0.95；target 为 260、280、300、320、340。
-- DAT 仅使用日级样本直接端到端训练所有参数；无订单级预训练、微调、冻结或低秩适配。
-- Historical Receipt 没有真实合成对应物，纯合成总入口不运行它。
-- `--smoke` 仅验证接口。`--resume` 可跳过校验通过的已完成子运行，不是轮内训练恢复。
-- 默认 seed 0，正式多 seed 运行需显式给 `--seeds`。当前入口保存逐 seed 指标与预测，未自动生成论文用 ensemble/bootstrap 报表。
-
-快速检查使用独立目录：
-
-```powershell
-python synthetic/scripts/generate.py --smoke --output synthetic/generated/check
-python scripts/run_synthetic_experiments.py --group all --data-root synthetic/generated/check --name synthetic_check --smoke
 ```
 
 ## 单独运行与 DAT 内部实验
@@ -91,7 +93,7 @@ python QR/DeepQR/scripts/run_experiment.py --data-root synthetic/generated/refer
 python ETO/Set-ETO/scripts/run_experiment.py --config ETO/Set-ETO/configs/hurdle_gamma.yaml --data-root synthetic/generated/reference --fold validation --name hurdle --smoke
 ```
 
-DAT 变体清单和信息分组见 [DAT/README.md](DAT/README.md)。DeepQR 是独立结构基准；DAT 内部的池化替换才是只改读出部分的消融。
+DAT 实验干预清单和信息分组见 [DAT/README.md](DAT/README.md)。DeepQR 是独立结构基准；DAT 内部的池化替换才是只改读出部分的消融。
 
 ## 真实数据接口保留
 
@@ -112,7 +114,7 @@ python scripts/run_experiments.py --fold final2020 --recipe-dir outputs/comparis
 主指标 `P = 1 - mean_cost / mean_SAA_cost`，SAA 使用相应训练部分的经验分位数。
 保存成本、P、pinball、覆盖率、平均配送量、零配送比例；成本分母为零时 P 明确记为未定义。
 Historical Receipt 直接评价实际 q，不把它转换成分位数，pinball 和覆盖率为空。
-LQR/GBQR 独立分位数使用预先固定的非负截断及排序纠正交叉；拟合、选参和测试使用相同规则。
+LQR/GBQR 独立分位数使用预先固定的非负截断及排序纠正交叉；拟合、选参和测试使用相同规则。DAT保持独立标量结果，交叉比例直接报告。
 
 ## 隐私与测试
 

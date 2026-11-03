@@ -27,7 +27,7 @@ class FoldData:
     def __init__(self, directory):
         self.directory = Path(directory).resolve()
         self.schema = read_json(self.directory / "data_feature_schema.json")
-        if self.schema.get("schema_version") not in {"morning_t_v1", "synthetic_axid_v1"}:
+        if self.schema.get("schema_version") not in {"morning_t_v1", "synthetic_axid_v2"}:
             raise ValueError("Unsupported data contract")
         manifest = read_json(self.directory / "manifest.json")
         if not manifest.get("complete"):
@@ -156,17 +156,21 @@ class DailySets(Dataset):
         self.daily = data.daily_split(split).reset_index(drop=True)
         self.frames = []
         self.samples = []
-        groups = dict(tuple(data.order_split(split).groupby("decision_day", sort=False)))
-        for row in self.daily.itertuples():
-            frame = groups.get(row.decision_day, data.orders.iloc[:0])
-            context = self.daily.loc[self.daily.decision_day.eq(row.decision_day)]
+        orders = data.order_split(split).reset_index(drop=True)
+        groups = orders.groupby("decision_day", sort=False).indices
+        all_numeric = data.order_scaler.transform(orders)
+        all_categories = data.categories(orders)
+        all_days = data.day_scaler.transform(self.daily)
+        for index, row in enumerate(self.daily.itertuples()):
+            positions = groups.get(row.decision_day, np.array([], dtype=int))
+            frame = orders.iloc[positions]
             self.frames.append(frame)
             self.samples.append(
                 {
                     "decision_day": row.decision_day.strftime("%Y-%m-%d"),
-                    "order_num": torch.from_numpy(data.order_scaler.transform(frame)),
-                    "order_cat": torch.from_numpy(data.categories(frame)),
-                    "day_num": torch.from_numpy(data.day_scaler.transform(context)[0]),
+                    "order_num": torch.from_numpy(all_numeric[positions]),
+                    "order_cat": torch.from_numpy(all_categories[positions]),
+                    "day_num": torch.from_numpy(all_days[index]),
                     "inventory": torch.tensor(row.It, dtype=torch.float32),
                     "demand": torch.tensor(row.D, dtype=torch.float32),
                 }

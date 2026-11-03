@@ -1,13 +1,13 @@
 """Check the frozen design against the real DAT module; never access datasets.
 
 This validates architecture arithmetic and deterministic forward invariance only.
-It does not implement the v3 generator, certify ERM, or run any formal experiment.
+It does not certify numerical neural ERM or run a formal experiment.
 """
 
 import argparse
 from copy import deepcopy
 import json
-from math import comb, floor, sqrt
+from math import comb, sqrt
 from pathlib import Path
 import sys
 
@@ -24,7 +24,6 @@ def model_config(protocol, profile, hidden=None, radius=None):
     if hidden is not None:
         spec["patient_hidden"] = spec["day_ff"] = hidden
     radius = spec["radius"] if radius is None else radius
-    heads = protocol["dat"]["heads"]
     return {
         "model": {
             "d_model": spec["d_model"],
@@ -38,15 +37,14 @@ def model_config(protocol, profile, hidden=None, radius=None):
             "self_attention": {
                 "enabled": True,
                 "num_layers": 1,
-                "num_heads": heads,
-                "ff_dim": spec["patient_ff"],
+                "num_heads": protocol["dat"]["self_attention_heads"],
                 "activation": "relu",
                 "dropout": 0.0,
             },
             "day_encoder": {"hidden_dims": [], "activation": "relu", "dropout": 0.0},
             "cross_attention": {
                 "num_layers": 1,
-                "num_heads": heads,
+                "num_heads": protocol["dat"]["cross_attention_heads"],
                 "ff_dim": spec["day_ff"],
                 "activation": "relu",
                 "dropout": 0.0,
@@ -58,7 +56,6 @@ def model_config(protocol, profile, hidden=None, radius=None):
                 "output_lower_bound": 0.0,
                 "output_upper_bound": spec["demand_upper"],
             },
-            "quantile_queries": {"enabled": False},
         },
         "loss": {"type": "pinball", "tau": protocol["theory_experiments"]["tau"]},
         "constraints": {
@@ -95,8 +92,10 @@ def validate(protocol):
     for name, profile in protocol["profiles"].items():
         m, da, dx = profile["max_orders"], sampling["order_dimension"], sampling["day_dimension_excluding_count"]
         dm = min(comb(da + m, m) - 1, 2 * m * da + 1)
-        required_width = 2 * (dm + dx) + 2
-        if profile["d_model"] < required_width or profile["d_model"] % protocol["dat"]["heads"]:
+        required_width = max(dm + 2, dm + dx + 1)
+        if profile["d_model"] < required_width or any(
+            profile["d_model"] % protocol["dat"][k] for k in ("self_attention_heads", "cross_attention_heads")
+        ):
             raise ValueError(f"Latent width is invalid for profile {name}")
         support = 3 * (m + sampling["n_new_max"]) + sampling["continuous_remainder_width"]
         if profile["demand_upper"] != support:
@@ -142,9 +141,10 @@ def validate(protocol):
     for hidden in protocol["theory_experiments"]["approximation"]["hidden_widths"]:
         net, _ = construct(protocol, theory, hidden=hidden)
         p = sum(x.numel() for x in net.parameters())
-        result["capacity"].append({"hidden": hidden, "parameters": p, "radius": 100 * (p / p0) ** 2})
+        result["capacity"].append({"hidden": hidden, "parameters": p, "radius": theory["radius"] * (p / p0) ** 2})
     for count in protocol["theory_experiments"]["train_sizes"]:
-        hidden = max(1, floor(32 * sqrt(count / 2000)))
+        rule = protocol["theory_experiments"]["joint_consistency"]
+        hidden = max(1, int(rule["width_anchor"] * (count / rule["sample_anchor"]) ** rule["exponent"]))
         net, _ = construct(protocol, theory, hidden=hidden)
         p = sum(x.numel() for x in net.parameters())
         result["joint_schedule"].append({"train_days": count, "hidden": hidden, "parameters": p})

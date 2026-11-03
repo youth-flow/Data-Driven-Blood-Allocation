@@ -6,6 +6,10 @@ def quantity_keys(frame):
     use = frame["申请用血量"].to_numpy(dtype=float)
     reserve = frame["申请备血量"].to_numpy(dtype=float)
     kind = (use > 0).astype(int) + 2 * (reserve > 0).astype(int)
+    if "clinical_risk" in frame:
+        amount = np.digitize(np.maximum(use, reserve), [2.0, 4.0, 8.0], right=True)
+        risk = np.digitize(frame.clinical_risk.to_numpy(float), [0.25, 0.5, 0.75])
+        return [list(zip(kind, amount, risk)), list(zip(kind, amount)), [(int(k),) for k in kind]]
     age = frame["delta"].to_numpy(dtype=int)
     amount = np.digitize(np.maximum(use, reserve), [2.0, 4.0, 8.0], right=True)
     department = frame["科室高频分组"].fillna("未知").astype(str).to_numpy()

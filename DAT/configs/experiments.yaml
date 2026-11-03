@@ -1,16 +1,2 @@
-structural:
-  - full
-  - no_self_attention
-  - mean_pool
-  - sum_pool
-  - no_orders
-  - no_inventory
-  - pinball
-  - softplus_beta6
-  - no_planned_use
-information:
-  - L0
-  - L1
-  - L2
-  - L3
-  - L4
+structural: [full, no_self_attention, mean_pool, sum_pool, no_day_query]
+information: [L0, L1, L2, L3, L4]

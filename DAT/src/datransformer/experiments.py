@@ -7,11 +7,7 @@ ABLATIONS = (
     "no_self_attention",
     "mean_pool",
     "sum_pool",
-    "no_orders",
-    "no_inventory",
-    "pinball",
-    "softplus_beta6",
-    "no_planned_use",
+    "no_day_query",
 )
 INFORMATION = ("full", "L0", "L1", "L2", "L3", "L4")
 
@@ -24,18 +20,8 @@ def experiment_config(config, data):
         raise ValueError("Unknown DAT ablation or information profile")
     if variant != "full" and level != "full":
         raise ValueError("Change structure or information in one experiment, not both")
-    if variant == "no_self_attention":
-        config["model"]["self_attention"]["enabled"] = False
-    if variant in {"mean_pool", "sum_pool"}:
-        config["model"]["cross_attention"]["readout"] = variant.removesuffix("_pool")
-    if variant == "no_inventory":
-        config["model"]["context"]["include_inventory"] = False
-    if variant == "pinball":
-        config["loss"]["type"] = "pinball"
-    if variant == "softplus_beta6":
-        config["loss"]["beta"] = 6.0
     active_day, active_num, active_cat = set(data.day_cols), set(data.order_num_cols), set(data.order_cat_cols)
-    drop_set = variant == "no_orders"
+    drop_set = False
     if level not in {"full", "L4"}:
         groups = data.schema.get("information_groups")
         if not groups:
@@ -50,11 +36,6 @@ def experiment_config(config, data):
             active_day.update(groups["day_clinical"])
         active_num, active_cat = set(groups["order_basic_num"]), set(groups["order_basic_cat"])
         drop_set = level in {"L0", "L1", "L2"}
-    if variant == "no_planned_use":
-        active_num = {c for c in active_num if not c.startswith("planned_use_")}
-        active_day = {c for c in active_day if not c.startswith("planned_use_")}
-        dependencies = data.schema.get("feature_dependencies", {})
-        active_day = {c for c in active_day if not any(v.startswith("planned_use_") for v in dependencies.get(c, []))}
     config["input_controls"] = {
         "day": [c in active_day for c in data.day_cols],
         "order_num": [c in active_num for c in data.order_num_cols],

@@ -2,7 +2,7 @@ import numpy as np
 
 
 def receipt_allocations(data, taus):
-    if data.schema["schema_version"] == "synthetic_axid_v1":
+    if data.schema["schema_version"].startswith("synthetic_"):
         raise ValueError("Synthetic data have no genuine historical hospital receipts")
     daily = data.daily_split("eval")
     if "q_hist_receipt" not in daily:

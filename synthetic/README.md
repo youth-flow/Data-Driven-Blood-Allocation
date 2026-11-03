@@ -1,128 +1,81 @@
-# 合成 AXID 实验
+# 完全人工 AXID 与六组实验
 
-## 新协议（2026-11-02）
+生成器 v3 和六组实验入口已实现。全部参数是人工实验设定，不读取真实原表、派生数据或已有预测模型。
+完整生成公式、理论对应与统计边界见 [实验协议](../docs/synthetic_protocol.md)。
+机器合同在 `configs/confirmed_protocol.yaml`，可执行 DGP 参数在 `configs/reference.yaml`。
 
-理论三组（估计误差、逼近能力、联合一致性）与性能三组（对比、结构消融、信息价值）
-采用已固定的[共同 DGP 与 DAT 方案](../docs/synthetic_protocol.md)，机器可读合同为
-`configs/confirmed_protocol.yaml`。使用 `python synthetic/scripts/check_protocol.py`
-可核验理论尺寸、实际 DAT 参数量、标量输出、置换不变性和参数投影。
-新协议的生成器 v3 和六组入口尚待接入；以下可执行命令仍是旧 v2，不代表新协议正式实验。
+## 数据合同
 
-本目录负责完全人工的数据生成，不读取真实原表、真实派生数据或训练好的预测模型。
-`configs/reference.yaml` 是可执行的参考机制；参数是实验设定，不是对医院真实分布的估计。
-当前用于搭建和验证实验，不能把小规模检查当成模型性能结论。
+- A：非空、无序、最多 M 条的可见订单集合；每条为申请用血量、申请备血量、已知风险。
+- X：两个已知环境、期初库存、人数、两种数量总和、风险均值与二阶矩；固定已知支持映射到 [0,1]，共8维。
+- I：`315 + 20*c1 + Uniform(-70,70)`，与 target 独立定义；不滚动库存。
+- D：可见订单实际贡献 + 当天新增需求 + `Uniform(0,0.5)` 连续余量。有界且不裁剪标签。
+- 样本日 IID；日期只是标识，不是输入。订单结果和未来共同冲击不进入特征。
+- 理论规模 M=2、B=18.5；性能规模 M=8、B=36.5。共同新增订单上界4。
+- S1–S4依次增加情境交互、集合构成作用、未来共同冲击；C0为常数条件分位数的可解校准。
 
-## 数据与决策
+性能样本为2000训练、500验证、3000测试；冻结配方后在2500日重新拟合。3000是独立单期场景数。
+相同 data seed 保证不同机制场景的 A/X/I 配对；扩大训练量保留原样本并固定验证和测试。理论组使用嵌套训练前缀，不合并验证样本。
+导出合同为 `synthetic_axid_v2`（生成器版本3），旧人工 schema 不混用。
 
-- `A`：目标日早上已知的申请集合，每条申请包含龄期、用血量、备血量、类型、科室、临床指标和已填写的计划日期。
-- `X`：日历、已知计划业务强度、已知急诊压力，以及从 A 计算的基础和临床汇总。
-- `I`：目标日期初库存；给定已知环境后，其噪声与需求冲击独立。
-- `D`：可见申请当天实现的需求，加当天新增申请需求。
-- 单一商品为 O 型红细胞。决策始终为 `q = max(Q_tau + target - I, 0)`，不展开患者分配或跨日库存递推。
+## 入口
 
-验证集起点固定为人工日期 2020-01-01；训练集向前取指定天数，测试集紧接验证集。日期只作为索引和日历变量，不表示真实覆盖年份。
-各日独立抽取外生随机量；不同场景使用相同种子时，A、X、I 保持相同，仅需求机制改变。
+根目录入口自动生成自己的数据，无需先单独生成：
 
-## 生成顺序与参数
-
-1. 生成已知环境 `scheduled_load`、`emergency_pressure`，均独立服从 Uniform(-1,1)。
-2. 可见申请数 `N ~ Binomial(32, sigmoid(-0.2+0.4*scheduled_load))`；另有 5% 概率为空集合。
-3. 每条申请类型概率为急救 0.15、手术备血 0.30、病房用血 0.30、病房备血 0.15、其他 0.10；科室为 6 个纯人工类别，龄期为 1/2/3 天。
-4. 先生成 `r ~ Beta(2,3)` 以构造相关的申请特征：申请用血量 `0.5 Binomial(12,0.25+0.25r)`，备血量 `0.5 Binomial(16,0.15+0.20r)`；不规定二者大小关系。血红蛋白由 `160-100r+Normal(0,8)` 截于 [40,180]；压积为 `0.003*Hb+Normal(0,0.02)` 截于 [0.1,0.55]。
-5. 计划日期偏移为 -1/0/1/2，概率 0.1/0.5/0.3/0.1；15% 缺失。它在需求生成之前已经可见，是人为定义的计划信息，绝不是事后输用日期。
-6. `I = 315 + 20*scheduled_load + Uniform(-70,70)`。I 与 target 分开定义，不随测试 target 调整。
-7. 最后独立生成未来冲击和订单结果，不将这些随机量放入输入。
-
-设 `s_i = clip((160-Hb_i)/100,0,1)`，`peer_i` 为同科室其他申请的平均 s，没有同科室其他申请时为零。
-订单发生概率为 `sigmoid(f_i + alpha*g_i + gamma*h_i + rho*U)`，其中：
-
-```text
-f_i = -2 + 0.35 log(1+申请用血量) + 0.15 log(1+备血量)
-      + 1.2 s_i + 0.5 急救标志 - 0.25 delta + 0.4 已知计划当天标志
-g_i = 0.8 scheduled_load * 手术备血标志 + 0.6 emergency_pressure * 急救标志
-h_i = peer_i * s_i
-U ~ Normal(0,1)，同一天所有订单共享
+```powershell
+python synthetic/scripts/check_protocol.py
+python scripts/run_synthetic_experiments.py --family all --smoke --name six_group_smoke --device cpu --threads 1
+python scripts/run_synthetic_experiments.py --family theory --name theory_main
+python scripts/run_synthetic_experiments.py --family performance --name performance_main
 ```
 
-发生后的数量为 `V_i = 0.5*(1+Binomial(5,p_i))`，
-`p_i = sigmoid(-0.5+0.3 log(1+申请用血量)+0.15 log(1+备血量)+0.7 s_i)`。
-未发生时贡献为零，`Y_i = B_i*V_i`。
+正式默认理论200个独立数据重复、性能10个，神经模型各3个初始化，计算量较大。检查计划用 `--dry-run`；先行耗时试运行可指定 `--repetitions 1`。缩小重复数的结果不得冒充完整协议结果。
+单组运行用 `--group estimation|approximation|consistency|comparison|ablation|information`。
+`--scenarios S2 S4`、`--methods DAT Set-ETO SAA` 可限制检查范围；methods只作用于性能组。
+`--train-sizes` 只作用于理论组；`--eval-days` 改变评价样本量，且写入冻结计划。
 
-新增申请数为 `M ~ Binomial(12, sigmoid(-0.7+0.4 emergency_pressure+0.3 scheduled_load+rho U))`。
-新增单笔数量也是半单位网格，其 Binomial 概率为 `sigmoid(-0.4+0.5 emergency_pressure+0.2 rho U)`。
-最终 `D = sum(Y_i) + D_new`。新增申请明细不进入 A；训练期订单结果仅供需要订单监督的方法使用。
-默认机制 D 的支持上界为 `3*(32+12)=132`，不对实现的 D 进行截尾；与当前 DAT/DeepQR 的 150 输出上界相容。
-调整集合上限后须同时检查预测器输出范围，不能按某个模型的胜负删改标签。
+同一命令加 `--resume` 可继续。计划、源码指纹、配置和已完成文件散列必须一致。
+计划同时记录Python、数值库版本及MKL设置；Windows入口默认MKL顺序计算，避免与PyTorch重复加载OpenMP。
+已完成任务跳过；中断任务从头重跑，原 attempt 保留；不支持 epoch 内恢复。代码或参数改变时换新实验名，不混合结果。
 
-## 四个预先定义的场景
-
-| 场景 | alpha | gamma | rho | 作用 |
-| --- | --- | --- | --- | --- |
-| S1 | 0 | 0 | 0 | 条件独立订单 |
-| S2 | 1 | 0 | 0 | 日级环境与申请类型交互 |
-| S3 | 1 | 1.5 | 0 | 加入集合构成作用 |
-| S4 | 1 | 1.5 | 0.8 | 加入共同冲击与条件相关性 |
-
-这些是人工统计机制，不声称已经识别真实临床因果关系，也不预设哪种模型必胜。
-当前数据没有跨日漂移；Rolling-SAA 可作为参照，但这里不检验其应对漂移的优势。
-没有真实 q_hist_receipt，不伪造 Historical Receipt。
-
-## 划分与输出
-
-主实验开发训练 2000 日、验证 500 日、测试 3000 日。选定超参数/轮数后，所有需拟合的方法从头在训练+验证共 2500 日上重训，再测试。正式报告同时给出开发训练量和最终拟合量；不能将最终模型称为只见过 2000 日。数据 seed 与模型训练 seed 独立。
-生成器第 2 版通过 SeedSequence 为三个样本集合分配独立随机流，再按样本日期分配输入和需求流。相同数据 seed 下只增加训练天数时，验证/测试样本完全不变，原训练样本是新训练样本的子集。
-
-- `validation/`：训练数据 + 验证数据；所有标准化和类别编码只用训练部分拟合。
-- `test/`：原训练 + 原验证组成重训数据，另外评估独立测试数据；转换在重训部分重新拟合。
-- 测试轮数和超参数必须来自开发阶段冻结的 recipe，测试标签不参与选择。
-- 输出包括订单级结果，仅供 Flat-ETO 的订单监督使用；D、D_new、订单结果不进入预测特征。
-- 三类实验统一使用普通 DAT，全参数日级端到端训练；DAT 不使用订单级监督、预训练或微调。
-- 输出文件使用 `synthetic_axid_v1` 数据合同；与真实预处理的 `morning_t_v1` 分开标识。
-- 生成内容、权重和结果均不进入 Git。`generated/` 已忽略，源码白名单也拒绝该目录。
+单独生成人工数据：
 
 ```powershell
 python synthetic/scripts/generate.py --scenario S2 --output synthetic/generated/reference
-python scripts/run_synthetic_experiments.py --group all --name synthetic_dev --seeds 0 1 2 3 4
-python scripts/run_synthetic_experiments.py --group all --fold test --name synthetic_test --seeds 0 1 2 3 4 --recipe-root outputs/synthetic_dev
 ```
 
-快速接口检查分别使用新输出目录，避免覆盖：
+## 六组代码
 
-```powershell
-python synthetic/scripts/generate.py --smoke --output synthetic/generated/check
-python scripts/run_synthetic_experiments.py --data-root synthetic/generated/check --group all --name synthetic_check --smoke
-```
+| 组 | 入口参数 | 代码 | 核心输出 |
+| --- | --- | --- | --- |
+| 估计误差 | theory / estimation | theory.py | 固定类风险尾部分布、合法界、C0精确偏置子类校准 |
+| 逼近能力 | theory / approximation | theory.py | oracle L1/L2、抽样最大误差、可达到超额风险 |
+| 联合一致性 | theory / consistency | theory.py | 固定/增长容量的超额风险、运营遗憾、复杂度趋势 |
+| 基准比较 | performance / comparison | performance.py | 9种方法；LQR/GBQR各有basic/enhanced |
+| 结构消融 | performance / ablation | performance.py | full和4项干预，另有2项有效容量匹配诊断 |
+| 信息价值 | performance / information | performance.py | 固定 DAT 的 L0–L4，分别重训 |
 
-`--smoke` 配方不能用于正式测试。`--resume` 只跳过内容校验通过的已完成运行；不支持训练轮内恢复，未完成运行需换新 suite 名称。
-默认只有 seed 0；正式多 seed 运行必须显式传 `--seeds`。每个模型/变体独立保存配置、配方、预测器和指标；合并指标为 `metrics_long.csv`。
+这里只保留简化标量 DAT。所谓三步走、LoRA、订单预训练和多分位数共享输出不在流程中。
+逼近诊断的 oracle 拟合模型不转移到性能实验。
 
-## Oracle 与可解释性边界
+## Oracle 与统计
 
-`oracle_quantiles()` 固定完整的 A、X，重新抽取未来冲击及订单结果，给出条件分位数的 Monte Carlo 近似。
-它不读取当天实际 D、订单实际结果或实现后的共同冲击，不能称为知道未来实现值的完美信息解。
-这是完整信息 oracle；信息消融各等级的专属 oracle 需要额外积分掉被遮蔽的信息，当前没有实现。
-这些函数便于后续分析，当前总入口不会自动将 oracle 作为训练模型加入比较。
+`oracle.py` 对有限订单分布卷积；有共同冲击时进行一维自适应正态积分。分位数由连续单元内插值得到，条件 pinball 风险解析积分。
+共同冲击积分记录误差估计和截断尾质量；估计不是严格数值证书。总体风险仍由独立输入平均估计，理论组记录 MCSE。
+`f_star` 是完整信息 Bayes oracle，不是类内最优 DAT，也不知当天的未来实现值。
+一般场景的风险曲线不能直接叫精确估计误差；精确 ERM 只在 C0 的常数偏置子类中认证。
+低信息级别用完整信息 oracle 只作为共同参照，不声称是该级别专属 Bayes 最优值。
 
-## 样本量与重复实验的最终安排
+主指标 `P = 1 - C_method/C_SAA`，统一 `q=max(Q_tau+target-I,0)`。共同测试日、共同 SAA 分母；不得以测试胜负修改机制。
+同一数据重复内先平均模型种子，再报告跨独立数据重复的均值、t区间和配对差。
+DAT的跨分位交叉照实报告，不通过排序改变主结果。
 
-完整登记见 `configs/study.yaml`，该文件记录实验安排，不是自动启动大规模训练的入口。
+## 本机输出
 
-- 主实验 S1–S4：2000 开发训练日、500 验证日、2500 最终重训日、3000 独立测试日。
-- 学习曲线 S2/S3：开发训练量 500/1000/2000/5000，对应最终拟合量 1000/1500/2500/5500；验证固定 500、测试固定 3000。绘图明确使用哪一种样本量，建议横轴用最终拟合量。
-- 每个配置 10 个独立数据 seed；每组神经模型和 wSAA 使用 3 个训练 seed。先在同一数据重复内平均训练 seed，再评价跨数据重复的不确定性。确定性方法每组运行一次。不能把同一数据集上的不同初始化当作独立数据重复。
-- 所有方法在同一重复内共享完全相同的测试日；不逐模型重新抽取测试集，也不按测试结果更改生成器。
-- 3000 是独立单周期场景数，不是模拟连续运营 8 年。大测试集降低评价的 Monte Carlo 误差，不能弥补训练样本不足。
-- 在近似校准且样本独立的连续情形，0.95 覆盖率用 500 样本估计的标准误约 0.975 个百分点，3000 样本约 0.398 个百分点；期望越界数分别约 25 和 150。当前离散需求可能有保守覆盖，实际误差应按实测覆盖率估计。
-- 成本差和 P 的精度须从配对损失与共同分母估计，不能把上述覆盖率误差直接当成 P 的误差。报告测试抽样误差与训练/数据重复波动。
-- 先固定 3000 测试场景；若需要更高精度，另生成预先规定的独立评估批次，不用测试表现反复调参。
-- 各场景输出均值、标准差、0.50/0.90/0.95 分位数、新增需求占比。S1–S4改变需求机制时也可能改变边际均值/方差，不能将场景间所有差异解释为单一结构的因果贡献。
-- I 的噪声条件独立于 D；因此本机制下 I 主要改变配送决策，不预设库存输入一定提高需求预测。
+`outputs/<name>/` 包含冻结计划、人工数据、逐任务配方/权重、条件分布缓存、长表、汇总及图。
+主要文件为 `theory_metrics.csv`、`theory_summary.csv`、`performance_metrics.csv`、
+`performance_summary.csv`、`paired_P_differences.csv`、`figures/` 和 `study_complete.json`。
+PNG依赖可选安装 `pip install -e ".[plots]"`；无matplotlib时仍输出CSV并明确记录缺少图。
 
-学习曲线的生成示例（同一数据 seed，验证/测试保持一致）：
-
-```powershell
-python synthetic/scripts/generate.py --scenario S2 --data-seed 20261102 --n-train 500 --output synthetic/generated/S2_n500
-python synthetic/scripts/generate.py --scenario S2 --data-seed 20261102 --n-train 2000 --output synthetic/generated/S2_n2000
-```
-
-统计依据：Morris, White & Crowther (2019), *Using simulation studies to evaluate statistical methods*, DOI 10.1002/sim.8086。样本数应服务于评价精度，而不必遵循固定训练/测试百分比。上述具体规模是本项目的预设协议，并非文献给出的充分样本量保证。
+所有生成样本、权重、结果均Git忽略。Git只保存代码、配置、协议和人工测试；不接触真实数据。
+`--smoke` 将神经训练减为1轮并进一步限制样本，用于接口核验，不能报告为正式性能。

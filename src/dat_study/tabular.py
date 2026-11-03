@@ -35,6 +35,16 @@ class TabularFeatures:
         if self.input_set == "basic":
             return np.empty((len(daily), 0))
         frame = data.orders.copy()
+        if data.schema.get("generator_version") == 3:
+            columns = []
+            for col in data.order_num_cols:
+                grouped = frame.groupby("decision_day")[col]
+                for values in (grouped.mean(), grouped.std().fillna(0), grouped.min(), grouped.max()):
+                    columns.append(daily.decision_day.map(values).fillna(0).to_numpy(float))
+            for left, right in (("申请用血量", "clinical_risk"), ("申请备血量", "clinical_risk")):
+                values = (frame[left] * frame[right]).groupby(frame.decision_day).sum()
+                columns.append(daily.decision_day.map(values).fillna(0).to_numpy(float))
+            return np.column_stack(columns)
         use = frame["申请用血量"].to_numpy(float)
         reserve = frame["申请备血量"].to_numpy(float)
         age = frame["delta"].to_numpy(float) + 1

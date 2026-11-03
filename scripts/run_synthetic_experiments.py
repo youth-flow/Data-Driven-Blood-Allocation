@@ -1,11 +1,18 @@
-"""Root A/B/C launcher. Never generates data implicitly or opens real tables."""
+"""One root entry for theory and performance experiments on artificial data."""
 
 from pathlib import Path
+import os
 import sys
 
+# Avoid loading competing MKL/PyTorch OpenMP runtimes on Windows/Conda.
+# PyTorch still uses the requested training threads; MKL runs sequentially.
+if os.name == "nt":
+    os.environ.setdefault("MKL_THREADING_LAYER", "SEQUENTIAL")
+
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
-from dat_study.synthetic_suite import main  # noqa: E402
+for source in (ROOT / "src", ROOT / "synthetic/src"):
+    sys.path.insert(0, str(source))
+from axid_synthetic.study import main  # noqa: E402
 
 if __name__ == "__main__":
-    main(default_config=ROOT / "configs/synthetic.yaml", variants=ROOT / "DAT/configs/experiments.yaml")
+    main()

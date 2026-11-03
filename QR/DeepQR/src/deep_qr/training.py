@@ -43,7 +43,7 @@ def fit_predict(data, config, recipe=None):
         row = {"epoch": epoch + 1, "training_loss": total / count}
         if validation is not None:
             score = score_prediction(predict(model, validation, config), validation, data, config)
-            row["validation_mean_P"] = score
+            row["validation_score"] = score
             if score > best:
                 best, stale, best_epoch, state = score, 0, epoch + 1, cpu_state(model)
             else:

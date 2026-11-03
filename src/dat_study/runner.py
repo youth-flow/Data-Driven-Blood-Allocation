@@ -7,6 +7,7 @@ import importlib.metadata
 import json
 import platform
 import re
+import time
 import pandas as pd
 import joblib
 from .config import METHODS, smoke_config, model_config
@@ -45,7 +46,7 @@ def run(config, fold, methods, run_name, smoke=False, recipe_dir=None):
             recipe = read_json(Path(recipe_dir) / method / "recipe.json")
             if recipe.get("method") != method or recipe.get("signature") != recipe_signature(configurations[method]):
                 raise ValueError("Recipe method/configuration mismatch")
-            if recipe.get("source_role") != "validation" or recipe.get("smoke"):
+            if recipe.get("source_role") != "validation" or (recipe.get("smoke") and not smoke):
                 raise ValueError("Final refit requires a non-smoke validation recipe")
             if pd.Timestamp(recipe["source_evaluation_end"]) >= pd.Timestamp(data.split["evaluation_start"]):
                 raise ValueError("Recipe must precede evaluation year")
@@ -65,7 +66,10 @@ def run(config, fold, methods, run_name, smoke=False, recipe_dir=None):
         folder.mkdir()
         selected = configurations[method]
         save_json(folder / "config.json", selected)
+        started = time.perf_counter()
         prediction, result, artifact = fit_predict(method, data, selected, recipes.get(method))
+        elapsed = time.perf_counter() - started
+        result["selection_metric"] = selected.get("selection_metric", "mean_P")
         daily = data.daily_split("eval")
         is_action = method == "Historical-Receipt"
         rows = (evaluate_allocations if is_action else evaluate)(
@@ -77,7 +81,11 @@ def run(config, fold, methods, run_name, smoke=False, recipe_dir=None):
             config["targets"],
         )
         for row in rows:
-            row.update(method=method, seed=config["seed"], fold=fold, smoke=smoke)
+            row.update(method=method, seed=config["seed"], fold=fold, smoke=smoke, fit_predict_seconds=elapsed)
+            if method == "DAT":
+                fitted = result["scalar_fits"][str(row["tau"])]
+                for key in ("allocated_parameters", "structurally_active_parameters"):
+                    row[key] = fitted[key]
         all_metrics.extend(rows)
         # Local outputs are ignored by Git. No raw IDs, source strings or order keys.
         prefix = "q" if is_action else "Q"

@@ -9,11 +9,16 @@ def distribution_quantiles(distribution, parameters, taus):
     if distribution == "Normal":
         values = parameters["mu"][:, None] + parameters["sigma"][:, None] * stats.norm.ppf(tau)
         return np.maximum(values, 0.0)
-    if distribution == "NegativeBinomial":
+    if distribution in {"NegativeBinomial", "SmoothedNegativeBinomial"}:
         mean = parameters["mean_count"][:, None]
         dispersion = parameters["dispersion"][:, None]
         probability = dispersion / (dispersion + mean)
-        return stats.nbinom.ppf(tau, dispersion, probability) / 2.0
+        count = stats.nbinom.ppf(tau, dispersion, probability)
+        if distribution == "SmoothedNegativeBinomial":
+            previous = stats.nbinom.cdf(count - 1, dispersion, probability)
+            mass = stats.nbinom.pmf(count, dispersion, probability)
+            return count / 2 + 0.5 * np.clip((tau - previous) / np.maximum(mass, 1e-300), 0, 1)
+        return count / 2.0
     zero_probability = 1.0 / (1.0 + np.exp(-parameters["zero_logit"]))
     positive_tau = np.clip(
         (tau - zero_probability[:, None]) / np.maximum(1.0 - zero_probability[:, None], 1e-12),

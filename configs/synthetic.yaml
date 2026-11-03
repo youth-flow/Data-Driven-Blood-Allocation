@@ -6,7 +6,6 @@ taus:
 - 0.7
 - 0.8
 - 0.9
-- 0.95
 targets:
 - 260
 - 280
@@ -36,10 +35,33 @@ model_overrides:
         - 50
         max_features:
         - 0.33
+        - 0.67
         - 1.0
   Set-ETO:
     set_eto:
       distributions:
       - Normal
-      - NegativeBinomial
       - HurdleGamma
+  DAT:
+    model:
+      head:
+        output_upper_bound: 36.5
+  DeepQR:
+    deep_qr:
+      output_upper_bound: 36.5
+  GBQR:
+    gbqr:
+      grid:
+        learning_rate:
+        - 0.03
+        - 0.06
+        - 0.1
+        max_leaf_nodes:
+        - 7
+        - 15
+        min_samples_leaf:
+        - 20
+        max_iter:
+        - 200
+        - 500
+selection_metric: pinball

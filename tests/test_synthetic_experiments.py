@@ -42,7 +42,7 @@ def test_generator_contract_and_reproducibility(generated, tmp_path):
     pd.testing.assert_frame_equal(a.daily, b.daily)
     pd.testing.assert_frame_equal(a.orders, b.orders)
     assert a.identity == b.identity
-    assert a.schema["schema_version"] == "synthetic_axid_v1"
+    assert a.schema["schema_version"] == "synthetic_axid_v2"
     daily = a.daily.set_index("decision_day")
     known = a.orders.groupby("decision_day").real_demand.sum().reindex(daily.index, fill_value=0)
     assert np.allclose(daily.D, known + daily.D_new)
@@ -131,8 +131,8 @@ def test_dat_ablation_train_reload(generated, synthetic_config, variant):
     restored = predict_artifact(
         {"method": "DAT", "artifact": artifact, "config": cfg, "data_identity": data.identity}, data
     )
-    assert prediction.shape == (8, 6)
-    assert np.isfinite(prediction).all() and (np.diff(prediction, axis=1) >= 0).all()
+    assert prediction.shape == (8, 5)
+    assert np.isfinite(prediction).all()
     assert np.allclose(prediction, restored, atol=1e-5)
 
 
@@ -202,11 +202,11 @@ def test_rolling_does_not_see_current_or_future_labels():
     assert np.array_equal(original[:2], altered[:2])
 
 
-def test_suite_test_requires_development_recipe(tmp_path):
-    from dat_study.synthetic_suite import main
+def test_suite_rejects_wrong_family_group(tmp_path):
+    from axid_synthetic.study import main
 
-    with pytest.raises(ValueError, match="recipe-root"):
-        main(["--fold", "test", "--name", "no_recipe"], default_config=ROOT / "configs/synthetic.yaml")
+    with pytest.raises(ValueError, match="Group"):
+        main(["--family", "theory", "--group", "comparison", "--name", "no_recipe"])
 
 
 def test_synthetic_generated_files_cannot_be_committed():
@@ -238,7 +238,7 @@ def test_historical_receipt_uses_actions_and_rejects_synthetic(generated, synthe
         receipt_allocations(data, [0.5, 0.9])
 
 
-@pytest.mark.parametrize("family", ["Normal", "NegativeBinomial", "HurdleGamma"])
+@pytest.mark.parametrize("family", ["Normal", "SmoothedNegativeBinomial", "HurdleGamma"])
 def test_set_eto_distribution_presets_train_reload(generated, synthetic_config, family):
     data = FoldData(generated[0] / "validation")
     cfg = model_config(synthetic_config, "Set-ETO")

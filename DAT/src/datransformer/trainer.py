@@ -1,22 +1,36 @@
-"""DAT training, validation selection and prediction."""
+"""Independent scalar DAT fits at each tau; no shared multi-quantile model."""
 
+from copy import deepcopy
+from math import comb
 import numpy as np
 import torch
-from dat_study.runtime import device_for, loader, to_device, score_prediction, prepare_fit, cpu_state
+from dat_study.runtime import device_for, loader, to_device, prepare_fit, cpu_state
 from .model import build_model
 from .constraints import project_parameters
-from .losses import multi_quantile_loss
 from .experiments import experiment_config
+from .losses import pinball_loss
+
+
+def scalar_config(config, tau):
+    selected = deepcopy(config)
+    selected["taus"] = [float(tau)]
+    selected["loss"] = {"type": "pinball", "tau": float(tau), "taus": [float(tau)]}
+    return selected
 
 
 def new_dat(data, config):
     config = experiment_config(config, data)
-    initial = np.quantile(data.daily_split("train").D, config["taus"], method="higher")
-    for j in range(len(initial)):
-        initial[j] = max(initial[j], initial[j - 1] + 0.001 if j else 0.001)
-    if initial[-1] > config["model"]["head"]["output_upper_bound"]:
-        raise ValueError("Training quantiles exceed the configured output bound")
-    config["model"]["head"]["initial_quantiles"] = initial.tolist()
+    if len(config["taus"]) != 1:
+        config = scalar_config(config, config["taus"][-1])
+    if config["loss"]["type"] != "pinball":
+        raise ValueError("DAT trains with original pinball loss")
+    if "demand_support_upper" in data.schema:
+        config["model"]["head"]["output_upper_bound"] = float(data.schema["demand_support_upper"])
+    if "max_orders" in data.schema:
+        m, da = data.schema["max_orders"], len(data.order_num_cols)
+        dm = min(comb(da + m, m) - 1, 2 * m * da + 1)
+        if config["model"]["d_model"] < max(dm + 2, dm + len(data.day_cols) + 1):
+            raise ValueError("DAT latent width violates the declared synthetic approximation profile")
     model = build_model(config, data.metadata()).to(device_for(config))
     project_parameters(model, config)
     return model
@@ -25,45 +39,37 @@ def new_dat(data, config):
 @torch.no_grad()
 def predict(model, kind, dataset, data, config):
     model.eval()
-    values = []
-    for raw in loader(dataset, config):
-        batch = to_device(raw, device_for(config))
-        value = model(batch)["quantiles"].cpu().numpy()
-        values.append(value)
-    return np.concatenate(values)
+    return np.concatenate(
+        [model(to_device(b, device_for(config)))["quantiles"].cpu().numpy() for b in loader(dataset, config)]
+    )
 
 
 def fit_daily(model, kind, training, data, config, epochs, validation=None):
-    optimizer = torch.optim.AdamW(
-        [p for p in model.parameters() if p.requires_grad],
-        lr=config["training"]["learning_rate"],
-        weight_decay=config["training"]["weight_decay"],
-    )
-    best, best_epoch, stale = -np.inf, 0, 0
-    state, history = None, []
+    optimizer = torch.optim.AdamW(model.parameters(), lr=config["training"]["learning_rate"], weight_decay=0.0)
+    best, stale, best_epoch, state, history = np.inf, 0, 0, None, []
+    tau = config["taus"][0]
     for epoch in range(int(epochs)):
         model.train()
-        loss_sum, count = 0.0, 0
+        total, count = 0.0, 0
         for raw in loader(training, config, True, epoch):
             batch = to_device(raw, device_for(config))
             optimizer.zero_grad(set_to_none=True)
-            prediction = model(batch)["quantiles"]
-            loss = multi_quantile_loss(
-                prediction, batch["demand"], config["taus"], config["loss"]["type"], beta=config["loss"]["beta"]
-            )
+            loss = pinball_loss(model(batch)["quantile"], batch["demand"], tau)
             if not torch.isfinite(loss):
-                raise RuntimeError("Nonfinite training loss; no source records logged")
+                raise RuntimeError("Nonfinite DAT loss")
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), config["training"]["gradient_clip"])
             optimizer.step()
             project_parameters(model, config)
-            loss_sum += float(loss.detach()) * len(batch["demand"])
+            total += loss.item() * len(batch["demand"])
             count += len(batch["demand"])
-        row = {"epoch": epoch + 1, "training_loss": loss_sum / count}
+        row = {"epoch": epoch + 1, "training_pinball": total / count}
         if validation is not None:
-            score = score_prediction(predict(model, kind, validation, data, config), validation, data, config)
-            row["validation_mean_P"] = score
-            if score > best:
+            q = predict(model, kind, validation, data, config)[:, 0]
+            residual = validation.daily.D.to_numpy() - q
+            score = float(np.maximum(tau * residual, (tau - 1) * residual).mean())
+            row["validation_pinball"] = score
+            if score < best:
                 best, best_epoch, stale, state = score, epoch + 1, 0, cpu_state(model)
             else:
                 stale += 1
@@ -74,13 +80,36 @@ def fit_daily(model, kind, training, data, config, epochs, validation=None):
             break
     if state is not None:
         model.load_state_dict(state)
-    return {"epochs": best_epoch, "history": history}
+    from .model import structural_parameter_counts
+
+    return {"epochs": best_epoch, "history": history, **structural_parameter_counts(model)}
 
 
 def fit_predict(data, config, recipe=None):
-    config = experiment_config(config, data)
-    training, evaluation, validation, epochs = prepare_fit(data, config, recipe)
-    model = new_dat(data, config)
-    result = fit_daily(model, "DAT", training, data, config, epochs, validation)
-    prediction = predict(model, "DAT", evaluation, data, config)
-    return prediction, result, {"model_state": cpu_state(model), "metadata": data.metadata()}
+    predictions, models, results = [], [], {}
+    for tau in config["taus"]:
+        selected = scalar_config(config, tau)
+        selected["seed"] = config["seed"] + int(round(tau * 10000))
+        frozen = None
+        if recipe is not None:
+            if str(tau) not in recipe.get("selection", {}).get("tau_epochs", {}):
+                raise ValueError("Scalar DAT refit requires frozen epochs for every tau")
+            frozen = {"epochs": recipe["selection"]["tau_epochs"][str(tau)]}
+        training, evaluation, validation, epochs = prepare_fit(data, selected, frozen)
+        model = new_dat(data, selected)
+        result = fit_daily(model, "DAT", training, data, selected, epochs, validation)
+        predictions.append(predict(model, "DAT", evaluation, data, selected))
+        results[str(tau)] = result
+        if "demand_support_upper" in data.schema:
+            selected["model"]["head"]["output_upper_bound"] = float(data.schema["demand_support_upper"])
+        models.append({"tau": tau, "config": experiment_config(selected, data), "model_state": cpu_state(model)})
+    return (
+        np.concatenate(predictions, axis=1),
+        {
+            "epochs": max(r["epochs"] for r in results.values()),
+            "selection": {"tau_epochs": {t: r["epochs"] for t, r in results.items()}},
+            "scalar_fits": results,
+            "training_mode": "independent_scalar_pinball",
+        },
+        {"scalar_models": models, "metadata": data.metadata()},
+    )

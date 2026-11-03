@@ -12,7 +12,7 @@ def fit_predict(data, config, recipe=None):
             continue
         prediction = rolling_quantiles(history, evaluation, config["taus"], **params)
         score = validation_score(prediction, data, config) if data.eval_role == "validation" else None
-        trials.append({"parameters": params, "validation_mean_P": score})
+        trials.append({"parameters": params, "validation_score": score})
         if best is None or (score is not None and score > best[0]):
             best = (score, params, prediction)
     if best is None:

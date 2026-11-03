@@ -2,6 +2,6 @@ extends: main.yaml
 schema_version: 1
 data_root: ../../synthetic/generated/reference
 output_root: ../../outputs
-taus: [0.5, 0.6, 0.7, 0.8, 0.9, 0.95]
-loss:
-  taus: [0.5, 0.6, 0.7, 0.8, 0.9, 0.95]
+model:
+  head:
+    output_upper_bound: 36.5

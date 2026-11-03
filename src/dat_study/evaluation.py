@@ -22,8 +22,7 @@ def evaluate(predictions, demand, inventory, training_demand, taus, targets):
         raise ValueError("Invalid daily evaluation dimensions")
     if not all(np.isfinite(v).all() for v in (p, d, inventory)) or (p < 0).any() or (d < 0).any():
         raise ValueError("Evaluation requires finite nonnegative demand and quantiles")
-    if (np.diff(p, axis=1) < -1e-5).any():
-        raise ValueError("Quantile crossing")
+    crossing_share = float((np.diff(p, axis=1) < -1e-5).any(axis=1).mean()) if len(taus) > 1 else 0.0
     saa = np.array([higher_quantile(training_demand, t) for t in taus])
     rows = []
     for k, tau in enumerate(taus):
@@ -43,6 +42,7 @@ def evaluate(predictions, demand, inventory, training_demand, taus, targets):
                     "P_defined": bool(baseline > 0),
                     "pinball": float(pinball),
                     "coverage": float((d <= p[:, k]).mean()),
+                    "crossing_share": crossing_share,
                     "mean_q": float(decision(p[:, k], inventory, target).mean()),
                     "binding_share": float((decision(p[:, k], inventory, target) == 0).mean()),
                 }

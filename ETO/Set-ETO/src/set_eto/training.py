@@ -52,7 +52,7 @@ def fit_daily(model, kind, training, data, config, epochs, validation=None):
         row = {"epoch": epoch + 1, "training_loss": loss_sum / count}
         if validation is not None:
             score = score_prediction(predict(model, kind, validation, data, config), validation, data, config)
-            row["validation_mean_P"] = score
+            row["validation_score"] = score
             if score > best:
                 best, best_epoch, stale, state = score, epoch + 1, 0, cpu_state(model)
             else:
@@ -92,7 +92,7 @@ def fit_predict(data, config, recipe=None):
             selected["set_eto"]["distribution"] = family
             prediction, result, artifact = fit_predict(data, selected, recipe)
             score = validation_score(prediction, data, config) if data.eval_role == "validation" else None
-            trials.append({"distribution": family, "validation_mean_P": score, "epochs": result["epochs"]})
+            trials.append({"distribution": family, "validation_score": score, "epochs": result["epochs"]})
             if best is None or (score is not None and score > best[0]):
                 best = (score, family, prediction, result, artifact)
         _, family, prediction, result, artifact = best

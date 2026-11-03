@@ -1,6 +1,7 @@
 """Shared selection bookkeeping, independent of model implementations."""
 
 from itertools import product
+import numpy as np
 from .evaluation import evaluate, selection_score
 
 
@@ -13,6 +14,10 @@ def candidates(grid):
 
 def validation_score(prediction, data, config):
     daily = data.daily_split("eval")
+    if config.get("selection_metric") == "pinball":
+        residual = daily.D.to_numpy()[:, None] - prediction
+        taus = np.asarray(config["taus"])[None, :]
+        return -float(np.maximum(taus * residual, (taus - 1) * residual).mean())
     return selection_score(
         evaluate(
             prediction,

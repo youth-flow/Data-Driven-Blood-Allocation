@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dat-study"
-version = "0.2.0"
+version = "0.3.0"
 description = "Reusable local blood-allocation experiments with a common morning data contract"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -12,6 +12,7 @@ dependencies = ["numpy>=1.24,<3", "pandas>=2.0,<4", "scipy>=1.10,<2", "scikit-le
 
 [project.optional-dependencies]
 dev = ["pytest>=8,<10", "ruff>=0.8,<1", "build>=1,<2"]
+plots = ["matplotlib>=3.7,<4"]
 
 [project.scripts]
 dat-study = "dat_study.cli:main"

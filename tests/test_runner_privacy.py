@@ -30,9 +30,10 @@ def test_final_refit_does_not_select_on_test_labels(synthetic_fold, config):
     data = FoldData(synthetic_fold)
     data.eval_role = "test"
     data.daily.loc[data.daily["split"].eq("validation"), "split"] = "test"
-    first, _, _ = fit_predict("DAT", data, config, recipe={"epochs": 1})
+    recipe = {"epochs": 1, "selection": {"tau_epochs": {str(t): 1 for t in config["taus"]}}}
+    first, _, _ = fit_predict("DAT", data, config, recipe=recipe)
     data.daily.loc[data.daily["split"].eq("test"), "D"] += 10000
-    second, _, _ = fit_predict("DAT", data, config, recipe={"epochs": 1})
+    second, _, _ = fit_predict("DAT", data, config, recipe=recipe)
     assert np.array_equal(first, second)
 
 

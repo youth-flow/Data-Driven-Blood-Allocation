@@ -7,7 +7,7 @@ from torch import nn
 from torch.nn import functional as F
 
 
-SUPPORTED_DISTRIBUTIONS = ("Normal", "NegativeBinomial", "HurdleGamma")
+SUPPORTED_DISTRIBUTIONS = ("Normal", "NegativeBinomial", "SmoothedNegativeBinomial", "HurdleGamma")
 
 
 def _mlp(input_dim: int, hidden_dims: list[int], output_dim: int, dropout: float):
@@ -44,7 +44,7 @@ class DeepSetsDistribution(nn.Module):
         dropout = float(config["dropout"])
         self.phi = _mlp(order_num_dim + sum(embedding_dims), patient_dims[:-1], patient_dims[-1], dropout)
         self.day_encoder = _mlp(day_dim, day_dims[:-1], day_dims[-1], dropout)
-        output_dim = {"Normal": 2, "NegativeBinomial": 2, "HurdleGamma": 3}[distribution]
+        output_dim = {"Normal": 2, "NegativeBinomial": 2, "SmoothedNegativeBinomial": 2, "HurdleGamma": 3}[distribution]
         self.head = _mlp(
             patient_dims[-1] + day_dims[-1],
             list(config["head_hidden_dims"]),
@@ -62,7 +62,7 @@ class DeepSetsDistribution(nn.Module):
         floor = self.parameter_floor
         if self.distribution == "Normal":
             return {"mu": F.softplus(raw[:, 0]), "sigma": F.softplus(raw[:, 1]) + floor}
-        if self.distribution == "NegativeBinomial":
+        if self.distribution in {"NegativeBinomial", "SmoothedNegativeBinomial"}:
             return {
                 "mean_count": F.softplus(raw[:, 0]),
                 "dispersion": F.softplus(raw[:, 1]) + floor,
@@ -77,14 +77,17 @@ class DeepSetsDistribution(nn.Module):
 def distribution_nll(distribution, parameters, demand):
     if distribution == "Normal":
         return -torch.distributions.Normal(parameters["mu"], parameters["sigma"]).log_prob(demand).mean()
-    if distribution == "NegativeBinomial":
-        count = torch.round(demand * 2.0)
+    if distribution in {"NegativeBinomial", "SmoothedNegativeBinomial"}:
+        smooth = distribution == "SmoothedNegativeBinomial"
+        if not smooth and not torch.allclose(demand * 2, torch.round(demand * 2), atol=1e-5, rtol=0):
+            raise ValueError("Discrete NegativeBinomial cannot silently round continuous demand")
+        count = torch.floor(demand * 2) if smooth else torch.round(demand * 2)
         mean = parameters["mean_count"].clamp_min(1e-8)
         dispersion = parameters["dispersion"]
         distribution_object = torch.distributions.NegativeBinomial(
             total_count=dispersion, logits=torch.log(mean / dispersion)
         )
-        return -distribution_object.log_prob(count).mean()
+        return -(distribution_object.log_prob(count) + (math.log(2) if smooth else 0)).mean()
     zero = demand <= 1e-8
     gamma = torch.distributions.Gamma(parameters["shape"], parameters["rate"])
     log_probability = torch.where(
