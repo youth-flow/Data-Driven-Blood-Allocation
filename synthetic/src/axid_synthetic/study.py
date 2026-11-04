@@ -24,10 +24,16 @@ def main(argv=None):
     parser.add_argument("--name", required=True)
     parser.add_argument("--protocol", type=Path, default=root / "synthetic/configs/confirmed_protocol.yaml")
     parser.add_argument("--output-root", type=Path, default=root / "outputs")
-    parser.add_argument("--scenarios", nargs="+", choices=["S1", "S2", "S3", "S4"])
+    parser.add_argument("--scenarios", nargs="+", choices=["S1", "S2", "S3", "S4", "C0"])
     parser.add_argument("--methods", nargs="+")
     parser.add_argument("--repetitions", type=int)
+    parser.add_argument("--repeat-start", type=int, default=0)
     parser.add_argument("--train-sizes", nargs="+", type=int)
+    parser.add_argument("--widths", nargs="+", type=int)
+    parser.add_argument("--model-seeds", nargs="+", type=int)
+    parser.add_argument("--epochs", type=int)
+    parser.add_argument("--patience", type=int)
+    parser.add_argument("--candidate-limit", type=int)
     parser.add_argument("--eval-days", type=int)
     parser.add_argument("--data-seed", type=int, default=20261102)
     parser.add_argument("--device", default="auto")
@@ -40,8 +46,18 @@ def main(argv=None):
         raise ValueError("Use a simple experiment name")
     if (args.repetitions is not None and args.repetitions < 1) or (args.eval_days is not None and args.eval_days < 2):
         raise ValueError("Positive repetitions and at least two evaluation cases required")
+    if args.repeat_start < 0:
+        raise ValueError("Repeat start must be nonnegative")
     if args.train_sizes and (any(x < 2 for x in args.train_sizes) or args.train_sizes != sorted(set(args.train_sizes))):
         raise ValueError("Training sizes must be unique increasing counts >= 2")
+    if args.widths and (any(x < 1 for x in args.widths) or args.widths != sorted(set(args.widths))):
+        raise ValueError("Widths must be unique increasing positive counts")
+    if args.model_seeds and (
+        any(x < 0 for x in args.model_seeds) or len(set(args.model_seeds)) != len(args.model_seeds)
+    ):
+        raise ValueError("Model seeds must be unique nonnegative integers")
+    if any(value is not None and value < 1 for value in (args.epochs, args.patience, args.candidate_limit)):
+        raise ValueError("Epochs, patience and candidate limit must be positive")
     if args.threads < 1:
         raise ValueError("threads must be positive")
     from dat_study.config import METHODS

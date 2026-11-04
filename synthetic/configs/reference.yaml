@@ -13,3 +13,5 @@ inventory_center: 315.0
 inventory_half_width: 70.0
 oracle_atol: 0.0000000001
 oracle_normal_cutoff: 9
+oracle_quadrature: gauss_hermite
+oracle_nodes: 25

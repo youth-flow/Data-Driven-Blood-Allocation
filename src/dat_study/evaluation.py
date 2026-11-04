@@ -31,20 +31,29 @@ def evaluate(predictions, demand, inventory, training_demand, taus, targets):
         for target in targets:
             baseline = cost(saa[k], d, inventory, tau, target).mean()
             value = cost(p[:, k], d, inventory, tau, target).mean()
+            allocation = decision(p[:, k], inventory, target)
+            ending = inventory + allocation - d
+            saa_allocation = decision(saa[k], inventory, target)
+            saa_ending = inventory + saa_allocation - d
             rows.append(
                 {
                     "tau": float(tau),
                     "target": float(target),
                     "days": len(d),
+                    "n_test": len(d),
                     "mean_cost": float(value),
+                    "TC": float(value * len(d)),
+                    "SL_G": float((ending >= target).mean()),
                     "saa_cost": float(baseline),
+                    "saa_TC": float(baseline * len(d)),
+                    "saa_SL_G": float((saa_ending >= target).mean()),
                     "P": float(1 - value / baseline) if baseline > 0 else None,
                     "P_defined": bool(baseline > 0),
                     "pinball": float(pinball),
                     "coverage": float((d <= p[:, k]).mean()),
                     "crossing_share": crossing_share,
-                    "mean_q": float(decision(p[:, k], inventory, target).mean()),
-                    "binding_share": float((decision(p[:, k], inventory, target) == 0).mean()),
+                    "mean_q": float(allocation.mean()),
+                    "binding_share": float((allocation == 0).mean()),
                 }
             )
     return rows
@@ -71,13 +80,18 @@ def evaluate_allocations(allocations, demand, inventory, training_demand, taus, 
             deviation = inventory + q[:, j] - d - target
             value = float((tau * np.maximum(-deviation, 0) + (1 - tau) * np.maximum(deviation, 0)).mean())
             baseline = float(cost(reference, d, inventory, tau, target).mean())
+            ending = inventory + q[:, j] - d
             rows.append(
                 {
                     "tau": float(tau),
                     "target": float(target),
                     "days": len(d),
+                    "n_test": len(d),
                     "mean_cost": value,
+                    "TC": float(value * len(d)),
+                    "SL_G": float((ending >= target).mean()),
                     "saa_cost": baseline,
+                    "saa_TC": float(baseline * len(d)),
                     "P": 1 - value / baseline if baseline > 0 else None,
                     "P_defined": baseline > 0,
                     "pinball": None,

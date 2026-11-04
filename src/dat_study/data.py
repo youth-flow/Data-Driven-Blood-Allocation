@@ -38,6 +38,9 @@ class FoldData:
         self.identity = sha256(self.directory / "manifest.json")
         self.split = read_json(self.directory / "split_manifest.json")
         self.state = read_json(self.directory / "preprocessing_state.json")
+        # The synthetic protocol fixes X=(c1,c2,I,N/M,sum u/M,sum v/M,mean r,mean r^2).
+        # Real-derived folds retain the historical layout with inventory appended last.
+        self.inventory_position = 2 if self.schema.get("schema_version") == "synthetic_axid_v2" else "end"
         if self.state["feature_fit_end"] != self.split["train_end"]:
             raise ValueError("Feature fitting and training boundary mismatch")
         self.eval_role = self.split["evaluation_role"]
@@ -119,14 +122,26 @@ class FoldData:
             ]
         )
 
+    def day_matrix(self, daily):
+        """Eight-dimensional model input; inventory is X_3 in the synthetic contract."""
+        base = self.day_scaler.transform(daily)
+        inventory = self.inventory_scaler.transform(daily)
+        if self.inventory_position == 2:
+            if base.shape[1] != 7:
+                raise ValueError("Synthetic X contract requires seven non-inventory day coordinates")
+            return np.column_stack([base[:, :2], inventory, base[:, 2:]])
+        return np.column_stack([base, inventory])
+
     def context(self, daily):
-        return np.column_stack([self.day_scaler.transform(daily), self.inventory_scaler.transform(daily)])
+        return self.day_matrix(daily)
 
     def metadata(self):
         return {
             "order_num_dim": len(self.order_num_cols),
             "order_cat_cardinalities": self.cardinalities,
             "day_num_dim": len(self.day_cols),
+            "day_feature_dim": len(self.day_cols) + 1,
+            "inventory_position": self.inventory_position,
             "inventory_mean": float(self.inventory_scaler.mean[0]),
             "inventory_std": float(self.inventory_scaler.scale[0]),
         }
@@ -161,6 +176,7 @@ class DailySets(Dataset):
         all_numeric = data.order_scaler.transform(orders)
         all_categories = data.categories(orders)
         all_days = data.day_scaler.transform(self.daily)
+        all_features = data.day_matrix(self.daily)
         for index, row in enumerate(self.daily.itertuples()):
             positions = groups.get(row.decision_day, np.array([], dtype=int))
             frame = orders.iloc[positions]
@@ -171,6 +187,7 @@ class DailySets(Dataset):
                     "order_num": torch.from_numpy(all_numeric[positions]),
                     "order_cat": torch.from_numpy(all_categories[positions]),
                     "day_num": torch.from_numpy(all_days[index]),
+                    "day_features": torch.from_numpy(all_features[index]),
                     "inventory": torch.tensor(row.It, dtype=torch.float32),
                     "demand": torch.tensor(row.D, dtype=torch.float32),
                 }
@@ -196,6 +213,6 @@ def collate(samples):
         result["order_num"][i, :n] = sample["order_num"]
         result["order_cat"][i, :n] = sample["order_cat"]
         result["order_mask"][i, :n] = True
-    for name in ("day_num", "inventory", "demand"):
+    for name in ("day_num", "day_features", "inventory", "demand"):
         result[name] = torch.stack([s[name] for s in samples])
     return result

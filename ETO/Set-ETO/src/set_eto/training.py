@@ -10,8 +10,9 @@ from .distributions import distribution_quantiles
 
 def set_context(batch, data):
     result = dict(batch)
-    inv = (batch["inventory"] - float(data.inventory_scaler.mean[0])) / float(data.inventory_scaler.scale[0])
-    result["day_num"] = torch.cat([batch["day_num"], inv[:, None]], -1)
+    if "day_features" not in batch:
+        inv = (batch["inventory"] - float(data.inventory_scaler.mean[0])) / float(data.inventory_scaler.scale[0])
+        result["day_features"] = torch.cat([batch["day_num"], inv[:, None]], -1)
     return result
 
 

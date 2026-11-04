@@ -58,7 +58,9 @@ git config core.hooksPath .githooks
 交叉注意力残差、日级FFN残差、截断标量线性头。没有订单FFN、额外输出LN或三步走。
 五个τ各训练独立网络，主结果不排序修正。结构说明见[DAT/README.md](DAT/README.md)。
 
-[六组实验协议](docs/synthetic_protocol.md)及生成器v3均已实现：
+[四份数值实验方案](数值实验方案/01_DAT_Architecture.md)及生成器v3均已实现：
+架构与接口见[01](数值实验方案/01_DAT_Architecture.md)，DGP与Oracle见[02](数值实验方案/02_Synthetic_DGP.md)，
+理论组见[03](数值实验方案/03_Theory_Experiments.md)，性能组见[04](数值实验方案/04_Performance_Experiments.md)。
 理论三组为估计误差、逼近能力、联合一致性；性能三组为基准比较、结构消融、信息价值。
 机器合同在 `synthetic/configs/confirmed_protocol.yaml`。
 DGP完全人工，有界、IID、非空集合、固定支持变换；不读取真实数据。

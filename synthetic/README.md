@@ -1,7 +1,7 @@
 # 完全人工 AXID 与六组实验
 
 生成器 v3 和六组实验入口已实现。全部参数是人工实验设定，不读取真实原表、派生数据或已有预测模型。
-完整生成公式、理论对应与统计边界见 [实验协议](../docs/synthetic_protocol.md)。
+完整生成公式、理论对应与统计边界见[数值实验方案](../数值实验方案/02_Synthetic_DGP.md)。
 机器合同在 `configs/confirmed_protocol.yaml`，可执行 DGP 参数在 `configs/reference.yaml`。
 
 ## 数据合同

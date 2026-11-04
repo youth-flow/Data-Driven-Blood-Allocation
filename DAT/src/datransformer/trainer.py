@@ -39,20 +39,76 @@ def new_dat(data, config):
 @torch.no_grad()
 def predict(model, kind, dataset, data, config):
     model.eval()
+    packed = _packed_dataset(dataset, device_for(config), config)
+    if packed is not None:
+        values = []
+        for start in range(0, len(dataset), 1024):
+            batch = {key: value[start : start + 1024] for key, value in packed.items()}
+            values.append(model(batch)["quantiles"].cpu().numpy())
+        return np.concatenate(values)
     return np.concatenate(
         [model(to_device(b, device_for(config)))["quantiles"].cpu().numpy() for b in loader(dataset, config)]
     )
+
+
+def _packed_dataset(dataset, device, config):
+    """Packed tensors avoid per-batch collation for the small tabular sets used here."""
+    samples = dataset.samples
+    if not samples:
+        return None
+    maximum = max(len(sample["order_num"]) for sample in samples)
+    if maximum > 32 or len(samples) > 100_000:
+        return None
+    numeric_dim = samples[0]["order_num"].shape[1]
+    categorical_dim = samples[0]["order_cat"].shape[1]
+    order_num = torch.zeros(len(samples), maximum, numeric_dim)
+    order_cat = torch.zeros(len(samples), maximum, categorical_dim, dtype=torch.long)
+    order_mask = torch.zeros(len(samples), maximum, dtype=torch.bool)
+    for i, sample in enumerate(samples):
+        n = len(sample["order_num"])
+        order_num[i, :n] = sample["order_num"]
+        order_cat[i, :n] = sample["order_cat"]
+        order_mask[i, :n] = True
+    result = {
+        "order_num": order_num,
+        "order_cat": order_cat,
+        "order_mask": order_mask,
+        "day_features": torch.stack([sample["day_features"] for sample in samples]),
+        "inventory": torch.stack([sample["inventory"] for sample in samples]),
+        "demand": torch.stack([sample["demand"] for sample in samples]),
+    }
+    return {key: value.to(device) for key, value in result.items()}
+
+
+@torch.no_grad()
+def _predict_packed(model, packed):
+    values = []
+    for start in range(0, len(packed["demand"]), 1024):
+        batch = {key: value[start : start + 1024] for key, value in packed.items()}
+        values.append(model(batch)["quantiles"].cpu().numpy())
+    return np.concatenate(values)
 
 
 def fit_daily(model, kind, training, data, config, epochs, validation=None):
     optimizer = torch.optim.AdamW(model.parameters(), lr=config["training"]["learning_rate"], weight_decay=0.0)
     best, stale, best_epoch, state, history = np.inf, 0, 0, None, []
     tau = config["taus"][0]
+    device = device_for(config)
+    packed = _packed_dataset(training, device, config)
+    validation_packed = _packed_dataset(validation, device, config) if validation is not None else None
     for epoch in range(int(epochs)):
         model.train()
         total, count = 0.0, 0
-        for raw in loader(training, config, True, epoch):
-            batch = to_device(raw, device_for(config))
+        if packed is not None:
+            generator = torch.Generator().manual_seed(config["seed"] + epoch)
+            permutation = torch.randperm(len(packed["demand"]), generator=generator).to(device)
+            batches = (
+                {key: value[permutation[start : start + config["training"]["batch_size"]]] for key, value in packed.items()}
+                for start in range(0, len(permutation), config["training"]["batch_size"])
+            )
+        else:
+            batches = (to_device(b, device) for b in loader(training, config, True, epoch))
+        for batch in batches:
             optimizer.zero_grad(set_to_none=True)
             loss = pinball_loss(model(batch)["quantile"], batch["demand"], tau)
             if not torch.isfinite(loss):
@@ -65,7 +121,11 @@ def fit_daily(model, kind, training, data, config, epochs, validation=None):
             count += len(batch["demand"])
         row = {"epoch": epoch + 1, "training_pinball": total / count}
         if validation is not None:
-            q = predict(model, kind, validation, data, config)[:, 0]
+            q = (
+                _predict_packed(model, validation_packed)[:, 0]
+                if validation_packed is not None
+                else predict(model, kind, validation, data, config)[:, 0]
+            )
             residual = validation.daily.D.to_numpy() - q
             score = float(np.maximum(tau * residual, (tau - 1) * residual).mean())
             row["validation_pinball"] = score

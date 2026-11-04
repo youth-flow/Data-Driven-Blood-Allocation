@@ -65,4 +65,4 @@ python synthetic/scripts/generate.py --scenario S2 --output synthetic/generated/
 python DAT/scripts/run_experiment.py --config DAT/configs/synthetic.yaml --fold validation --variant mean_pool --name dat_mean
 ```
 
-性能轨道按验证 pinball 选择轮数；冻结后以训练+验证从头重训，不读测试标签选参。理论轨道采用固定预算、原训练目标最小 checkpoint，详见 [六组协议](../docs/synthetic_protocol.md)。
+性能轨道按验证 pinball 选择轮数；冻结后以训练+验证从头重训，不读测试标签选参。理论轨道采用固定预算、原训练目标最小 checkpoint，详见[数值实验方案](../数值实验方案/03_Theory_Experiments.md)。

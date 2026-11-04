@@ -47,9 +47,7 @@ def test_pdf_equations_and_only_three_layernorms(generated_v3):
                 normalized, normalized, normalized, key_padding_mask=~batch["order_mask"], need_weights=False
             )[0]
         )
-        x = torch.cat(
-            [batch["day_num"], ((batch["inventory"] - model.inventory_mean) / model.inventory_std)[:, None]], -1
-        )
+        x = batch["day_features"]
         u = model.day_encoder(x).unsqueeze(1)
         v = (
             u
@@ -79,6 +77,18 @@ def test_fixed_scaling_nonempty_sets_and_no_labels_in_inputs(generated_v3):
     assert data.inventory_scaler.mean[0] == 225 and data.inventory_scaler.scale[0] == 180
     assert not np.allclose(data.daily.D * 2, np.round(data.daily.D * 2))
     assert data.state["scaling_source"] == "predeclared_support_not_fitted_to_samples"
+
+
+def test_synthetic_x_coordinate_order_and_count_recovery(generated_v3):
+    data, settings = generated_v3
+    dataset = DailySets(data, "eval")
+    batch = collate([dataset[0], dataset[1]])
+    inventory = (batch["inventory"].numpy() - 225.0) / 180.0
+    assert np.allclose(batch["day_features"][:, 2].numpy(), inventory)
+    assert np.allclose(
+        batch["day_features"][:, 3].numpy(),
+        batch["order_mask"].sum(1).numpy() / settings["max_visible_orders"],
+    )
 
 
 @pytest.mark.parametrize("scenario", ["S1", "S3", "S4", "C0"])

@@ -74,7 +74,7 @@ def construct(protocol, profile, hidden=None, radius=None):
 
     config = model_config(protocol, profile, hidden, radius)
     # 7 non-inventory network coordinates + fixed-affine inventory = 8 X coordinates.
-    net = DecisionAwareTransformer(3, [], 7, config, inventory_mean=225.0, inventory_std=180.0)
+    net = DecisionAwareTransformer(3, [], 7, config, inventory_mean=225.0, inventory_std=180.0, inventory_position=2)
     return net, config
 
 

@@ -4,9 +4,10 @@ from copy import deepcopy
 import numpy as np
 import pandas as pd
 import torch
+from scipy import integrate
 from dat_study.config import load_config
 from dat_study.data import FoldData, NumericScaler, DailySets
-from dat_study.runtime import loader, device_for, seed_everything, to_device, cpu_state
+from dat_study.runtime import device_for, seed_everything, cpu_state
 from dat_study.registry import backend
 from dat_study.io import save_json
 from .generator import (
@@ -28,6 +29,7 @@ class SimulationData(FoldData):
 
     def __init__(self, train, evaluation, config):
         self.eval_role = "validation"
+        self.inventory_position = 2
         self.order_num_cols, self.order_cat_cols = NUM_BASIC + NUM_CLINICAL, []
         self.day_cols = DAY_CONTEXT + DAY_BASIC + DAY_CLINICAL
         self.daily = pd.concat(
@@ -65,6 +67,9 @@ def dat_configuration(root, profile, tau, hidden, seed, architecture=None):
         if key.endswith("bound") or key == "global_parameter_radius":
             cfg["constraints"][key] = profile["radius"]
     return cfg
+
+
+_BOUND_CACHE = {}
 
 
 def uniform_bound(config, count, tau, sample_size, delta, da=3, dx=8, bias_only=False):
@@ -110,14 +115,44 @@ def uniform_bound(config, count, tau, sample_size, delta, da=3, dx=8, bias_only=
         lam = 1.0
     b = config["model"]["head"]["output_upper_bound"]
     lt = max(tau, 1 - tau)
+    key = (
+        int(count),
+        int(sample_size),
+        round(float(radius), 10),
+        round(float(lam), 10),
+        round(float(b), 10),
+        round(float(tau), 10),
+        round(float(delta), 10),
+        bool(bias_only),
+    )
+    if key in _BOUND_CACHE:
+        return dict(_BOUND_CACHE[key])
     closed = 6 * lt * b * np.sqrt(count / sample_size) * (np.sqrt(np.log1p(8 * radius * lam / b)) + np.sqrt(np.pi) / 2)
     closed += lt * b * np.sqrt(2 * np.log(1 / delta) / sample_size)
-    return {
+
+    def entropy_log(s):
+        return count * np.log1p(2 * radius * lam / s)
+
+    def jensen_integral(a):
+        if a <= 0:
+            value, _ = integrate.quad(lambda s: np.sqrt(entropy_log(s)), 0.0, b / 4, epsabs=1e-10, limit=200)
+        else:
+            value, _ = integrate.quad(lambda s: np.sqrt(entropy_log(s)), a, b / 4, epsabs=1e-10, limit=200)
+        return 4 * a + 12 / np.sqrt(sample_size) * value
+
+    candidates = [0.0, *np.geomspace(b / 4 * 1e-7, b / 4 * 0.999999, 160)]
+    j_value = min(b / 2, min(jensen_integral(a) for a in candidates))
+    integral = min(lt * b, 2 * lt * j_value + lt * b * np.sqrt(2 * np.log(1 / delta) / sample_size))
+    result = {
         "parameter_lipschitz_envelope": float(lam),
+        "complexity_integral": float(j_value),
         "bound_closed": float(closed),
-        "bound_capped": float(min(lt * b, closed)),
-        "bound_is_trivial": bool(closed >= lt * b),
+        "bound_integral": float(integral),
+        "bound_capped": float(min(lt * b, closed, integral)),
+        "bound_is_trivial": bool(min(closed, integral) >= lt * b),
     }
+    _BOUND_CACHE[key] = result
+    return dict(result)
 
 
 def fit_network(data, config, epochs, objective, oracle_targets=None):
@@ -132,12 +167,23 @@ def fit_network(data, config, epochs, objective, oracle_targets=None):
     if oracle_targets is not None:
         for sample, target in zip(dataset.samples, oracle_targets):
             sample["demand"] = torch.tensor(float(target), dtype=torch.float32)
+    device = device_for(config)
+    batch_size = int(config["training"]["batch_size"])
+    packed = _packed_dataset(dataset, device)
+    count = len(dataset)
+
+    def batches(indices):
+        for start in range(0, count, batch_size):
+            selection = indices[start : start + batch_size]
+            yield {key: value[selection] for key, value in packed.items()}
+
     optimizer = torch.optim.AdamW(model.parameters(), lr=config["training"]["learning_rate"], weight_decay=0.0)
     best, state, history = np.inf, None, []
     for epoch in range(epochs):
         model.train()
-        for raw in loader(dataset, config, True, epoch):
-            batch = to_device(raw, device_for(config))
+        generator = torch.Generator().manual_seed(config["seed"] + epoch)
+        permutation = torch.randperm(count, generator=generator).to(device)
+        for batch in batches(permutation):
             optimizer.zero_grad(set_to_none=True)
             pred = model(batch)["quantile"]
             loss = (
@@ -154,8 +200,7 @@ def fit_network(data, config, epochs, objective, oracle_targets=None):
         model.eval()
         total = 0.0
         with torch.no_grad():
-            for raw in loader(dataset, config):
-                batch = to_device(raw, device_for(config))
+            for batch in batches(torch.arange(count, device=device)):
                 pred = model(batch)["quantile"]
                 value = (
                     ((pred - batch["demand"]) ** 2).mean()
@@ -163,12 +208,37 @@ def fit_network(data, config, epochs, objective, oracle_targets=None):
                     else pinball_loss(pred, batch["demand"], config["taus"][0])
                 )
                 total += value.item() * len(pred)
-        score = total / len(dataset)
+        score = total / count
         history.append({"epoch": epoch + 1, "full_training_objective": score})
         if score < best:
             best, state = score, cpu_state(model)
     model.load_state_dict(state)
     return model, best, history
+
+
+def _packed_dataset(dataset, device):
+    samples = dataset.samples
+    count = len(samples)
+    max_orders = max(1, max(len(sample["order_num"]) for sample in samples))
+    numeric_dim = samples[0]["order_num"].shape[1]
+    categorical_dim = samples[0]["order_cat"].shape[1]
+    order_num = torch.zeros(count, max_orders, numeric_dim)
+    order_cat = torch.zeros(count, max_orders, categorical_dim, dtype=torch.long)
+    order_mask = torch.zeros(count, max_orders, dtype=torch.bool)
+    for i, sample in enumerate(samples):
+        n = len(sample["order_num"])
+        order_num[i, :n] = sample["order_num"]
+        order_cat[i, :n] = sample["order_cat"]
+        order_mask[i, :n] = True
+    packed = {
+        "order_num": order_num,
+        "order_cat": order_cat,
+        "order_mask": order_mask,
+        "day_features": torch.stack([sample["day_features"] for sample in samples]),
+        "inventory": torch.stack([sample["inventory"] for sample in samples]),
+        "demand": torch.stack([sample["demand"] for sample in samples]),
+    }
+    return {key: value.to(device) for key, value in packed.items()}
 
 
 def _targets(sample, config, tau):
@@ -187,8 +257,9 @@ def run_theory(args, protocol, generator, root, output, groups, code_hash):
     settings, profile = protocol["theory_experiments"], protocol["profiles"]["theory"]
     tau = settings["tau"]
     sizes = args.train_sizes or ([24, 48] if args.smoke else settings["train_sizes"])
-    widths = [16, 32] if args.smoke else settings["approximation"]["hidden_widths"]
+    widths = args.widths or ([16, 32] if args.smoke else settings["approximation"]["hidden_widths"])
     repeats = args.repetitions or (1 if args.smoke else settings["independent_data_repetitions"])
+    model_seeds = [0] if args.smoke else (args.model_seeds or settings["model_seeds"])
     eval_count = args.eval_days or (12 if args.smoke else settings["evaluation_contexts_initial"])
     approximation_count = 24 if args.smoke else settings["approximation"].get("training_contexts", 10000)
     all_rows = []
@@ -207,7 +278,7 @@ def run_theory(args, protocol, generator, root, output, groups, code_hash):
         if group == "estimation":
             scenarios = list(dict.fromkeys([*scenarios, "C0"]))
         for scenario in scenarios:
-            for repeat in range(repeats):
+            for repeat in range(args.repeat_start, args.repeat_start + repeats):
                 g = {**generator, "max_visible_orders": profile["max_orders"], "scenario": scenario}
                 data_seed = args.data_seed + repeat
                 streams = np.random.SeedSequence([data_seed, 731]).spawn(2)
@@ -237,7 +308,7 @@ def run_theory(args, protocol, generator, root, output, groups, code_hash):
                 )
                 oracle_training = _targets(training, g, tau) if group == "approximation" else None
                 for n, hidden, schedule in choices:
-                    modes = ["numerical_DAT", "exact_bias_only"] if scenario == "C0" else ["numerical_DAT"]
+                    modes = ["exact_bias_only"] if scenario == "C0" else ["numerical_DAT"]
                     for mode in modes:
                         name = f"T_{group}_{scenario}_r{repeat}_n{n}_h{hidden}_{schedule}_{mode}"
                         signature = {
@@ -277,19 +348,29 @@ def run_theory(args, protocol, generator, root, output, groups, code_hash):
                                     cfg["constraints"][key] = radius
                             cfg["training"].update(settings["training"])
                             cfg["training"].update(device=args.device, threads=args.threads)
+                            if args.epochs is not None:
+                                cfg["training"]["epochs"] = args.epochs
+                            if args.patience is not None:
+                                cfg["training"]["patience"] = args.patience
                             if args.smoke:
                                 cfg["training"].update(epochs=1, batch_size=8)
                             if mode == "exact_bias_only":
-                                q = float(np.quantile(daily.D, tau, method="inverted_cdf"))
+                                values = np.sort(daily.D.to_numpy(float))
+                                rank = int(np.ceil(tau * len(values)))
+                                q = float(values[max(rank - 1, 0)])
                                 prediction = np.full((eval_count, 1), q)
                                 save_json(
                                     folder / "exact_erm.json",
-                                    {"empirical_quantile": q, "class": "constant_output_bias"},
+                                    {
+                                        "empirical_quantile": q,
+                                        "class": "constant_output_bias",
+                                        "definition": "inf{y: empirical_CDF(y) >= tau}",
+                                    },
                                 )
                                 best, best_model, best_cfg, history = None, None, cfg, []
                             else:
                                 best, best_model, best_cfg, history = np.inf, None, None, []
-                                for seed in [0] if args.smoke else settings["model_seeds"]:
+                                for seed in model_seeds:
                                     selected = deepcopy(cfg)
                                     selected["seed"] = seed
                                     model, score, trace = fit_network(
@@ -340,7 +421,8 @@ def run_theory(args, protocol, generator, root, output, groups, code_hash):
                                         "estimator": mode,
                                         "tau": tau,
                                         "target": target,
-                                        "parameters": parameter_count,
+                                        "parameters": class_parameters,
+                                        "network_parameters": parameter_count,
                                         "class_parameters": class_parameters,
                                         "parameter_radius": radius,
                                         "parameter_norm": parameter_norm,
@@ -353,6 +435,7 @@ def run_theory(args, protocol, generator, root, output, groups, code_hash):
                                         "oracle_L1": float(np.abs(error).mean()),
                                         "oracle_L2": float(np.sqrt(np.mean(error**2))),
                                         "sampled_max_error": float(np.max(np.abs(error))),
+                                        "eval_point_max": float(np.max(np.abs(error))),
                                         "quantity": "achievable_approximation_error"
                                         if group == "approximation"
                                         else "estimation_error_realizable"

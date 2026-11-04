@@ -15,21 +15,27 @@ from .jobs import run_job
 from .oracle import cached_laws, assess_laws
 
 
-def search_space(method, smoke, settings):
+def search_space(method, smoke, settings, limit=None):
     if smoke or method not in {"DAT", "DeepQR", "Flat-ETO", "Set-ETO"}:
         return [{}]
     search = settings["set_eto_search" if method == "Set-ETO" else "neural_search"]
-    return [
+    candidates = [
         {"learning_rate": lr, "batch_size": batch}
         for lr, batch in product(search["learning_rates"], search["batch_sizes"])
     ]
+    candidates.sort(
+        key=lambda item: (
+            abs(np.log10(item["learning_rate"] / 0.0003)),
+            abs(np.log2(item["batch_size"] / 128)),
+        )
+    )
+    return candidates[:limit] if limit else candidates
 
 
 def experiment_tasks(group, settings):
     if group == "comparison":
         for method in settings["comparison"]["methods"]:
-            for variant in ["basic", "enhanced"] if method in {"LQR", "GBQR"} else ["full"]:
-                yield method, variant
+            yield method, "full"
     elif group == "ablation":
         for variant in settings["ablation"]["variants"]:
             yield "DAT", variant
@@ -41,14 +47,18 @@ def experiment_tasks(group, settings):
 
 
 def run_performance(args, protocol, generator, root, output, groups, code_hash):
-    settings = protocol["performance_experiments"]
+    settings = deepcopy(protocol["performance_experiments"])
+    if args.epochs is not None:
+        settings["neural_search"]["max_epochs"] = args.epochs
+    if args.patience is not None:
+        settings["neural_search"]["patience"] = args.patience
     repeats = args.repetitions or (1 if args.smoke else settings["independent_data_repetitions"])
-    models = [0] if args.smoke else settings["model_seeds"]
+    models = [0] if args.smoke else (args.model_seeds or settings["model_seeds"])
     all_rows = []
     for group in groups:
         scenarios = args.scenarios or (["S2"] if args.smoke else settings[group]["scenarios"])
         for scenario in scenarios:
-            for repeat in range(repeats):
+            for repeat in range(args.repeat_start, args.repeat_start + repeats):
                 profile = protocol["profiles"]["performance"]
                 g = {
                     **generator,
@@ -141,9 +151,7 @@ def run_performance(args, protocol, generator, root, output, groups, code_hash):
                                     )
                             elif group == "information":
                                 override["information"] = variant
-                            elif method in {"LQR", "GBQR"}:
-                                override.setdefault(method.lower(), {})["input_set"] = variant
-                            candidates = search_space(method, args.smoke, settings)
+                            candidates = search_space(method, args.smoke, settings, args.candidate_limit)
                             trials, best = [], None
                             for index, parameters in enumerate(candidates):
                                 cfg = deepcopy(base)

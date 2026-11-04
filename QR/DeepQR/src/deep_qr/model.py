@@ -37,13 +37,18 @@ class DeepSetsQuantiles(nn.Module):
             self.head[-1].bias.copy_(torch.as_tensor(bias, dtype=torch.float32))
         self.register_buffer("inventory_mean", torch.tensor(metadata["inventory_mean"]))
         self.register_buffer("inventory_std", torch.tensor(metadata["inventory_std"]))
+        self.inventory_position = metadata.get("inventory_position", "end")
 
     def forward(self, batch):
         embedded = [layer(batch["order_cat"][:, :, j]) for j, layer in enumerate(self.embeddings)]
         tokens = self.phi(torch.cat([batch["order_num"], *embedded], dim=-1))
         pooled = (tokens * batch["order_mask"].unsqueeze(-1)).sum(dim=1)
-        inventory = (batch["inventory"] - self.inventory_mean) / self.inventory_std
-        day = self.day_encoder(torch.cat([batch["day_num"], inventory[:, None]], dim=-1))
+        if "day_features" in batch:
+            day_input = batch["day_features"]
+        else:
+            inventory = (batch["inventory"] - self.inventory_mean) / self.inventory_std
+            day_input = torch.cat([batch["day_num"], inventory[:, None]], dim=-1)
+        day = self.day_encoder(day_input)
         raw = self.head(torch.cat([pooled, day], dim=-1))
         return F.softplus(raw).cumsum(dim=-1).clamp(max=self.upper)
 

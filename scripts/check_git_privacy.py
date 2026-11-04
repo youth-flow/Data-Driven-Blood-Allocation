@@ -11,7 +11,7 @@ import subprocess
 import sys
 
 ROOT_FILES = {"README.md", "CONTRIBUTING.md", "pyproject.toml", ".gitignore", ".gitattributes"}
-PREFIXES = ("src/", "tests/", "configs/", "docs/", ".github/workflows/")
+PREFIXES = ("src/", "tests/", "configs/", "docs/", "数值实验方案/", ".github/workflows/")
 # Historical source prefixes are retained for auditing the existing root commit.
 MODEL_DIRS = (
     "DAT",

@@ -36,12 +36,22 @@ class PatientEncoder(nn.Module):
 
 class DecisionAwareTransformer(nn.Module):
     def __init__(
-        self, order_num_dim, order_cat_cardinalities, day_num_dim, config, inventory_mean=0.0, inventory_std=1.0
+        self,
+        order_num_dim,
+        order_cat_cardinalities,
+        day_num_dim,
+        config,
+        inventory_mean=0.0,
+        inventory_std=1.0,
+        inventory_position="end",
     ):
         super().__init__()
         model = config["model"]
         width, eps = int(model["d_model"]), float(model.get("layer_norm_eps", 1e-5))
         sa, ca = model["self_attention"], model["cross_attention"]
+        if inventory_position not in {2, "end"}:
+            raise ValueError("Inventory coordinate is either the synthetic X_3 or the final coordinate")
+        self.inventory_position = inventory_position
         if eps <= 0 or any(width % int(section["num_heads"]) for section in (sa, ca)):
             raise ValueError("Positive LN epsilon and independently compatible head counts required")
         if any(int(section.get("num_layers", 1)) != 1 for section in (sa, ca)):
@@ -93,6 +103,22 @@ class DecisionAwareTransformer(nn.Module):
                 raise ValueError("Input mask width mismatch")
             self.register_buffer(f"{name}_gate", torch.tensor(values, dtype=torch.bool), persistent=False)
 
+    def _day_input(self, batch):
+        """Assemble the fixed eight-dimensional X; the inventory slot is always active."""
+        if "day_features" in batch:
+            day = batch["day_features"].clone()
+            if self.inventory_position == 2:
+                day[:, :2] = day[:, :2] * self.day_gate[:2]
+                day[:, 3:] = day[:, 3:] * self.day_gate[2:]
+            else:
+                day[:, :-1] = day[:, :-1] * self.day_gate
+            return day
+        day_num = batch["day_num"] * self.day_gate
+        inv = (batch["inventory"] - self.inventory_mean) / self.inventory_std
+        if self.inventory_position == 2:
+            return torch.cat([day_num[:, :2], inv[:, None], day_num[:, 2:]], -1)
+        return torch.cat([day_num, inv[:, None]], -1)
+
     def forward(self, batch, return_attention=False):
         numeric = batch["order_num"] * self.order_num_gate
         categorical = batch["order_cat"] * self.order_cat_gate.to(torch.long)
@@ -108,8 +134,7 @@ class DecisionAwareTransformer(nn.Module):
             norm = self.sa_norm(tokens)
             attention, _ = self.self_attention(norm, norm, norm, key_padding_mask=~safe_mask, need_weights=False)
             tokens = tokens + attention
-        inv = (batch["inventory"] - self.inventory_mean) / self.inventory_std
-        day = torch.cat([batch["day_num"] * self.day_gate, inv[:, None]], -1)
+        day = self._day_input(batch)
         u = self.day_encoder(day).unsqueeze(1)
         weights = None
         if self.ablation in {"mean_pool", "sum_pool"}:
@@ -143,6 +168,7 @@ def build_model(config, metadata):
         config,
         metadata["inventory_mean"],
         metadata["inventory_std"],
+        metadata.get("inventory_position", "end"),
     )
 
 
