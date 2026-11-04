@@ -103,7 +103,10 @@ def fit_daily(model, kind, training, data, config, epochs, validation=None):
             generator = torch.Generator().manual_seed(config["seed"] + epoch)
             permutation = torch.randperm(len(packed["demand"]), generator=generator).to(device)
             batches = (
-                {key: value[permutation[start : start + config["training"]["batch_size"]]] for key, value in packed.items()}
+                {
+                    key: value[permutation[start : start + config["training"]["batch_size"]]]
+                    for key, value in packed.items()
+                }
                 for start in range(0, len(permutation), config["training"]["batch_size"])
             )
         else:

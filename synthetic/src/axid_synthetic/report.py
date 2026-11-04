@@ -271,6 +271,7 @@ def _theory_figures(output, data, figures, plt):
             ("excess_pinball", "T3_risk_convergence.png", "T3: total excess pinball risk"),
             ("operational_regret", "T3_operational_regret.png", "T3: operational regret at G=300"),
         ):
+            label = "Excess pinball risk" if metric == "excess_pinball" else "Operational regret"
             fig, axes = plt.subplots(1, 2, figsize=(9.6, 4.0), squeeze=False)
             for ax, scenario in zip(axes[0], sorted(consistency.scenario.unique())):
                 table = consistency[consistency.scenario.eq(scenario)]
@@ -279,7 +280,7 @@ def _theory_figures(output, data, figures, plt):
                 for schedule, rows in table.groupby("schedule"):
                     curve = rows.groupby("n_train")[metric].mean().sort_index()
                     ax.plot(curve.index, curve.values, marker="o", label=schedule)
-                ax.set(xscale="log", xlabel="Training days T", ylabel=metric)
+                ax.set(xscale="log", xlabel="Training days T", ylabel=label)
                 ax.set_title(str(scenario))
                 ax.legend(fontsize=7)
             fig.suptitle(title)
@@ -334,6 +335,34 @@ def _performance_figures(output, data, figures, plt):
             fig.tight_layout(rect=(0, 0, 1, 0.86))
             fig.savefig(figures / f"P1_SL_by_method_{scenario}.png", dpi=160)
             plt.close(fig)
+
+            # The absolute TC/SL_G lines overlap when between-method differences are
+            # small; fixed (tau, G) panels make those differences visible.
+            taus, targets = sorted(table.tau.unique()), sorted(table.target.unique())
+            for metric, label, filename in (
+                ("TC", "Total cost TC", "P1_TC_method_panels"),
+                ("SL_G", "Target service level SL_G", "P1_SL_method_panels"),
+            ):
+                fig, axes = plt.subplots(len(taus), len(targets), figsize=(18, 12), sharex=True, squeeze=False)
+                for row, tau in enumerate(taus):
+                    for column, target in enumerate(targets):
+                        ax = axes[row, column]
+                        panel = table[table.tau.eq(tau) & table.target.eq(target)]
+                        values = panel.groupby("method")[metric].mean().reindex(methods)
+                        ax.plot(range(len(methods)), values.values, marker="o", linestyle="none", color="tab:blue")
+                        span = max(float(values.max() - values.min()), abs(float(values.mean())) * 1e-4, 1e-8)
+                        ax.set_ylim(float(values.min()) - 0.25 * span, float(values.max()) + 0.25 * span)
+                        ax.grid(axis="y", alpha=0.3)
+                        ax.set_xticks(range(len(methods)), methods, rotation=90, fontsize=6)
+                        ax.set_title(f"τ={tau:g}, G={target:g}", fontsize=8)
+                        if row == len(taus) - 1:
+                            ax.set_xlabel("Method")
+                        if column == 0:
+                            ax.set_ylabel(label)
+                fig.suptitle(f"P1 {label} by (τ, G), {scenario}")
+                fig.tight_layout(rect=(0, 0, 1, 0.96))
+                fig.savefig(figures / f"{filename}_{scenario}.png", dpi=150)
+                plt.close(fig)
 
         # τ×G heatmaps for the two reference methods.
         for method in [m for m in ("DAT", "SAA") if m in comparison.method.unique()]:

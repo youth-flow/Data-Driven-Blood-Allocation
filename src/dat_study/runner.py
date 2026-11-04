@@ -8,6 +8,7 @@ import json
 import platform
 import re
 import time
+import numpy as np
 import pandas as pd
 import joblib
 from .config import METHODS, smoke_config, model_config
@@ -72,6 +73,9 @@ def run(config, fold, methods, run_name, smoke=False, recipe_dir=None):
         result["selection_metric"] = selected.get("selection_metric", "mean_P")
         daily = data.daily_split("eval")
         is_action = method == "Historical-Receipt"
+        if not is_action and data.schema.get("demand_support_upper") is not None:
+            # Every demand quantile is defined on the known demand support [0, B].
+            prediction = np.clip(prediction, 0.0, float(data.schema["demand_support_upper"]))
         rows = (evaluate_allocations if is_action else evaluate)(
             prediction,
             daily.D.to_numpy(),

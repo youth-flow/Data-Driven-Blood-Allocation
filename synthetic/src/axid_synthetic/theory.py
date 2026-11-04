@@ -275,7 +275,7 @@ def run_theory(args, protocol, generator, root, output, groups, code_hash):
             else settings["approximation" if group == "approximation" else "joint_consistency"]["scenarios"]
         )
         scenarios = args.scenarios or (["S2"] if args.smoke else configured)
-        if group == "estimation":
+        if group == "estimation" and (args.scenarios is None or "C0" in args.scenarios):
             scenarios = list(dict.fromkeys([*scenarios, "C0"]))
         for scenario in scenarios:
             for repeat in range(args.repeat_start, args.repeat_start + repeats):

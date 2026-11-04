@@ -34,7 +34,12 @@ ROOT_FILES |= {"ETO/README.md", "SAA/README.md", "QR/README.md"}
 PREFIXES += tuple(f"{model}/{part}/" for model in MODEL_DIRS for part in ("src", "tests", "configs", "scripts"))
 ROOT_FILES |= {f"{model}/README.md" for model in MODEL_DIRS}
 ROOT_FILES |= {"data/数据预处理.py", ".githooks/pre-commit", ".githooks/pre-push"}
-SCRIPTS = {"scripts/check_git_privacy.py", "scripts/run_experiments.py", "scripts/run_synthetic_experiments.py"}
+SCRIPTS = {
+    "scripts/check_git_privacy.py",
+    "scripts/run_experiments.py",
+    "scripts/run_synthetic_experiments.py",
+    "synthetic/scripts/merge_studies.py",
+}
 SOURCE_EXTENSIONS = {".py", ".md", ".yaml", ".yml", ".toml", ".sh"}
 PRIVATE_PARTS = {"__pycache__", "outputs", "results", "artifacts", "checkpoints", "generated", ".git"}
 SECRET_PATTERN = re.compile(
