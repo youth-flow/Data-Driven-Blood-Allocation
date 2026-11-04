@@ -66,7 +66,7 @@ python synthetic/scripts/generate.py --scenario S2 --output synthetic/generated/
 一般场景的风险曲线不能直接叫精确估计误差；精确 ERM 只在 C0 的常数偏置子类中认证。
 低信息级别用完整信息 oracle 只作为共同参照，不声称是该级别专属 Bayes 最优值。
 
-主指标 `P = 1 - C_method/C_SAA`，统一 `q=max(Q_tau+target-I,0)`。共同测试日、共同 SAA 分母；不得以测试胜负修改机制。
+性能主指标为平均成本 `AC` 与目标服务率 `SL_G`，统一 `q=max(Q_tau+target-I,0)`；`P = 1 - AC/AC_SAA` 仅作内部诊断。共同测试日、共同 SAA 参照；不得以测试胜负修改机制。
 同一数据重复内先平均模型种子，再报告跨独立数据重复的均值、t区间和配对差。
 DAT的跨分位交叉照实报告，不通过排序改变主结果。
 

@@ -113,8 +113,8 @@ python scripts/run_experiments.py --fold final2020 --recipe-dir outputs/comparis
 ## 决策与统计
 
 统一决策 `q = max(Q_tau + target - I, 0)`；成本为期末库存相对 target 偏差的不对称惩罚。
-主指标 `P = 1 - mean_cost / mean_SAA_cost`，SAA 使用相应训练部分的经验分位数。
-保存成本、P、pinball、覆盖率、平均配送量、零配送比例；成本分母为零时 P 明确记为未定义。
+性能主指标为平均成本 `AC`（3000 天逐日成本的算术平均）与目标服务率 `SL_G`；SAA 使用相应训练部分的经验分位数。
+内部元数据保存 AC、SL_G、pinball、覆盖率、平均配送量、零配送比例；`P = 1 - AC / AC_SAA` 仅作内部诊断，不作为 P1–P3 的最终性能指标。
 Historical Receipt 直接评价实际 q，不把它转换成分位数，pinball 和覆盖率为空。
 LQR/GBQR 独立分位数使用预先固定的非负截断及排序纠正交叉；拟合、选参和测试使用相同规则。DAT保持独立标量结果，交叉比例直接报告。
 

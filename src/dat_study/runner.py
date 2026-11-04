@@ -137,7 +137,7 @@ def run(config, fold, methods, run_name, smoke=False, recipe_dir=None):
             "data_identity": data.identity,
             "seed": config["seed"],
             "evaluation_role": data.eval_role,
-            "P_definition": "1 - mean_cost / mean_SAA_cost",
+            "P_definition": "1 - average_cost / average_SAA_cost",
             "artifacts": {
                 str(p.relative_to(output)): sha256(p)
                 for p in output.rglob("*")

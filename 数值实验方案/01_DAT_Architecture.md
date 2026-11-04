@@ -308,7 +308,7 @@ def target_service_flag(q, demand, inventory_raw, G):
     return (inventory_raw + q - demand >= G)
 ```
 
-这里合成实验使用 \(b=\tau,h=1-\tau\)，因此 \(b+h=1\)。**性能三组只向最终结果报告总成本 `TC` 与期末库存达到 \(G\) 的服务率 `SL_G`**；Pinball 是训练/超参选择用损失，不是性能论文的第三个评价指标。
+这里合成实验使用 \(b=\tau,h=1-\tau\)，因此 \(b+h=1\)。**性能三组只向最终结果报告平均成本 `AC` 与期末库存达到 \(G\) 的服务率 `SL_G`**；Pinball 是训练/超参选择用损失，不是性能论文的第三个评价指标。
 
 ## 7. 模块拆分建议
 
@@ -318,7 +318,7 @@ synthetic/
   data/dataset.py             # Dataset、collate、P3 信息门控
   losses/pinball.py           # 标准 pinball 损失
   operations/policy.py        # q=[f+G-I]_+
-  operations/metrics.py       # TC 与目标 SL_G
+  operations/metrics.py       # AC 与目标 SL_G
   training/projection.py      # 全局欧氏参数球投影
   scripts/check_protocol.py   # 参数计数、支持集、对称性、泄漏检查
 ```

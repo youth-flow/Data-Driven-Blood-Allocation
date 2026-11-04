@@ -232,7 +232,7 @@ def test_historical_receipt_uses_actions_and_rejects_synthetic(generated, synthe
     rows = evaluate_allocations(q, daily.D, daily.It, data.daily_split("train").D, [0.5, 0.9], [260, 300])
     assert all(row["mean_q"] == 7.0 and row["pinball"] is None and row["coverage"] is None for row in rows)
     deviation = daily.It.to_numpy() + 7 - daily.D.to_numpy() - 260
-    assert rows[0]["mean_cost"] == pytest.approx(np.abs(deviation).mean() / 2)
+    assert rows[0]["average_cost"] == pytest.approx(np.abs(deviation).mean() / 2)
     data.daily.loc[data.daily["split"].eq("validation"), "q_hist_receipt"] = np.nan
     with pytest.raises(ValueError, match="Missing"):
         receipt_allocations(data, [0.5, 0.9])
