@@ -208,9 +208,9 @@ def _theory_figures(output, data, figures, plt):
         ax.set(
             xscale="log",
             yscale="symlog",
-            ylim=(1e-8, None),
+            ylim=(1e-6, 20),
             xlabel="Training days T",
-            ylabel="Exact excess pinball risk",
+            ylabel="Exact excess pinball risk / theoretical bound",
         )
         ax.set_title("T1-C0: exact ERM estimation error and high-probability bounds")
         ax.legend(fontsize=7)
@@ -316,7 +316,7 @@ def _performance_figures(output, data, figures, plt):
                     ax.plot(curve.index, curve.values, marker="o", label=method)
                 ax.set(title=f"τ={tau:g}", xlabel="Target G", ylabel="Total cost TC")
             handles, labels = axes[0].get_legend_handles_labels()
-            fig.legend(handles, labels, loc="upper center", ncol=5, fontsize=7)
+            fig.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, 0.93), ncol=5, fontsize=7)
             fig.suptitle(f"P1 total cost, {scenario}")
             fig.tight_layout(rect=(0, 0, 1, 0.86))
             fig.savefig(figures / f"P1_TC_by_method_{scenario}.png", dpi=160)
@@ -330,7 +330,7 @@ def _performance_figures(output, data, figures, plt):
                     ax.plot(curve.index, curve.values, marker="o", label=method)
                 ax.set(title=f"τ={tau:g}", xlabel="Target G", ylabel="Target service level SL_G")
             handles, labels = axes[0].get_legend_handles_labels()
-            fig.legend(handles, labels, loc="upper center", ncol=5, fontsize=7)
+            fig.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, 0.93), ncol=5, fontsize=7)
             fig.suptitle(f"P1 target service level, {scenario}")
             fig.tight_layout(rect=(0, 0, 1, 0.86))
             fig.savefig(figures / f"P1_SL_by_method_{scenario}.png", dpi=160)
@@ -398,11 +398,48 @@ def _performance_figures(output, data, figures, plt):
                         order = sorted(curve.index)
                         ax.plot(order, curve.loc[order].values, marker="o", label=f"G={target:g}")
                     ax.set(xlabel=x_name, ylabel=label, title=f"τ={tau:g}")
+                    ax.tick_params(axis="x", labelrotation=90, labelsize=6)
                 handles, labels = axes[0, 0].get_legend_handles_labels()
-                fig.legend(handles, labels, loc="upper center", ncol=5, fontsize=7)
+                fig.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, 0.93), ncol=5, fontsize=7)
                 fig.suptitle(f"{title}: {metric}, {scenario}")
                 fig.tight_layout(rect=(0, 0, 1, 0.84))
                 name = f"{filename}_{metric}_{'ablation' if group == 'ablation' else 'information'}_{scenario}.png"
+                fig.savefig(figures / name, dpi=160)
+                plt.close(fig)
+
+        # Paired differences relative to the full DAT / L4 reference. These are
+        # still TC and SL_G values (not a new metric) but remove the large
+        # between-G level so component effects are visible.
+        reference = "full" if group == "ablation" else "L4"
+        keys = ["scenario", "tau", "target", "data_repeat", "variant"]
+        for metric, label in (("TC", "Total cost TC"), ("SL_G", "Target service level SL_G")):
+            per_repeat = block.groupby(keys, dropna=False)[metric].mean().reset_index()
+            anchor = per_repeat[per_repeat.variant.eq(reference)][
+                ["scenario", "tau", "target", "data_repeat", metric]
+            ].rename(columns={metric: "reference"})
+            joined = per_repeat.merge(anchor, on=["scenario", "tau", "target", "data_repeat"], how="inner")
+            joined["difference"] = joined[metric] - joined.reference
+            for scenario, table in joined.groupby("scenario"):
+                taus = sorted(table.tau.unique())
+                fig, axes = plt.subplots(1, len(taus), figsize=(3.5 * len(taus), 3.6), squeeze=False)
+                for ax, tau in zip(axes[0], taus):
+                    panel = table[table.tau.eq(tau)]
+                    for target, rows in panel.groupby("target"):
+                        curve = rows.groupby("variant").difference.mean()
+                        order = sorted(curve.index)
+                        ax.plot(order, curve.loc[order].values, marker="o", label=f"G={target:g}")
+                    ax.axhline(0.0, color="black", linewidth=0.7)
+                    ax.set(
+                        xlabel="variant",
+                        ylabel=f"{label} − reference ({reference})",
+                        title=f"τ={tau:g}",
+                    )
+                    ax.tick_params(axis="x", labelrotation=90, labelsize=6)
+                handles, labels = axes[0, 0].get_legend_handles_labels()
+                fig.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, 0.93), ncol=5, fontsize=7)
+                fig.suptitle(f"{title}: {label} difference vs {reference}, {scenario}")
+                fig.tight_layout(rect=(0, 0, 1, 0.84))
+                name = f"{filename}_{metric}_difference_{scenario}.png"
                 fig.savefig(figures / name, dpi=160)
                 plt.close(fig)
 
