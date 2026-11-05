@@ -1,4 +1,0 @@
-extends: main.yaml
-schema_version: 1
-set_eto:
-  distribution: NegativeBinomial

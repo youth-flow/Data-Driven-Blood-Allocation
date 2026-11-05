@@ -1,2 +1,0 @@
-structural: [full, no_self_attention, mean_pool, sum_pool, no_day_query]
-information: [L0, L1, L2, L3, L4]

@@ -1,14 +1,14 @@
-schema_version: 1
+schema_version: 2
 seed: 42
-taus: [0.5, 0.6, 0.7, 0.8, 0.9]
+taus: [0.9]
 targets: [260, 280, 300, 320, 340]
 method: DAT
 data_root: ../../data/processed
 output_root: ../../outputs
 training:
-  epochs: 240
-  batch_size: 128
-  learning_rate: 0.0003
+  epochs: 120
+  batch_size: 64
+  learning_rate: 0.001
   weight_decay: 0.0
   patience: 30
   gradient_clip: 1.0
@@ -22,10 +22,10 @@ model:
   self_attention: {num_layers: 1, num_heads: 4, dropout: 0.0}
   day_encoder: {hidden_dims: [], activation: relu, dropout: 0.0}
   cross_attention: {num_layers: 1, num_heads: 4, ff_dim: 256, dropout: 0.0}
-  head: {hidden_dims: [], output_lower_bound: 0.0, output_upper_bound: 150.0}
+  head: {hidden_dims: [], output_lower_bound: 0.0, output_upper_bound: 36.5}
 loss:
   type: pinball
-  taus: [0.5, 0.6, 0.7, 0.8, 0.9]
+  taus: [0.9]
 constraints:
   enabled: true
   projection_interval: 1

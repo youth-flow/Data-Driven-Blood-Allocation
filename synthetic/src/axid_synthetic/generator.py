@@ -8,9 +8,6 @@ import pandas as pd
 import yaml
 
 SCENARIOS = {
-    "S1": (0.0, 0.0, 0.0),
-    "S2": (1.0, 0.0, 0.0),
-    "S3": (1.0, 1.5, 0.0),
     "S4": (1.0, 1.5, 0.8),
     "C0": (0.0, 0.0, 0.0),
 }
@@ -185,16 +182,17 @@ def fixed_scalers(config):
     }
 
 
-def export_fold(folder, train, evaluation, role, config):
-    folder.mkdir(parents=True, exist_ok=False)
+def export_fold(folder, train, evaluation, role, config, create=True):
+    if create:
+        folder.mkdir(parents=True, exist_ok=False)
     train_daily, train_orders = train
     eval_daily, eval_orders = evaluation
     daily = pd.concat([train_daily.assign(split="train"), eval_daily.assign(split=role)], ignore_index=True)
     orders = pd.concat([train_orders, eval_orders], ignore_index=True)
     train_end = str(train_daily.decision_day.max().date())
     schema = {
-        "schema_version": "synthetic_axid_v2",
-        "generator_version": 3,
+        "schema_version": "synthetic_axid_v3",
+        "generator_version": 4,
         "order_num_cols": NUM_BASIC + NUM_CLINICAL,
         "order_cat_cols": [],
         "day_feature_cols": DAY_CONTEXT + DAY_BASIC + DAY_CLINICAL,
@@ -252,36 +250,34 @@ def export_fold(folder, train, evaluation, role, config):
     )
 
 
-def generate(config, output):
-    config = dict(config)
-    if config.get("schema_version") != 1 or config.get("generator_version") != 3:
-        raise ValueError("Use the current version-3 synthetic configuration")
-    if config["scenario"] not in SCENARIOS:
-        raise ValueError("Unknown DGP scenario")
-    for key in ("n_train", "n_validation", "n_test", "max_visible_orders", "max_new_orders"):
+def validate_config(config):
+    if config.get("schema_version") != 2 or config.get("generator_version") != 4:
+        raise ValueError("Use the current version-4 synthetic configuration")
+    if config["scenario"] != "S4":
+        raise ValueError("Performance data generation is S4-only")
+    for key in ("n_train", "n_test", "max_visible_orders", "max_new_orders"):
         if not isinstance(config[key], int) or config[key] < (0 if key == "max_new_orders" else 1):
             raise ValueError(f"Invalid count: {key}")
     if config.get("remainder_width", 0.5) not in (0.0, 0.5):
         raise ValueError("Use full-cell continuous demand or the explicitly discrete sensitivity")
     if config["inventory_center"] <= config["inventory_half_width"] + 20 or config["inventory_half_width"] < 0:
         raise ValueError("Inventory support must be positive")
+
+
+def generate_performance(config, output):
+    """S4 performance fold: 2,500 training days and 3,000 independent test days."""
+    config = dict(config)
+    validate_config(config)
     output = Path(output).resolve()
     if output.exists():
         raise ValueError("Synthetic output already exists; choose a fresh directory")
-    seeds = np.random.SeedSequence(config["data_seed"]).spawn(3)
+    seeds = np.random.SeedSequence(config["data_seed"]).spawn(2)
     anchor = pd.Timestamp(config.get("validation_start", "2020-01-01"))
-    starts = [anchor - pd.Timedelta(days=config["n_train"]), anchor, anchor + pd.Timedelta(days=config["n_validation"])]
-    splits = [
-        simulate_split(config, config[key], start, seed, label)
-        for label, key, seed, start in zip(
-            ("train", "validation", "test"), ("n_train", "n_validation", "n_test"), seeds, starts
-        )
-    ]
+    train = simulate_split(config, config["n_train"], anchor - pd.Timedelta(days=config["n_train"]), seeds[0], "train")
+    test = simulate_split(config, config["n_test"], anchor, seeds[1], "test")
     output.mkdir(parents=True, exist_ok=False)
     (output / "generation.yaml").write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
-    export_fold(output / "validation", splits[0], splits[1], "validation", config)
-    refit = tuple(pd.concat([splits[0][i], splits[1][i]], ignore_index=True) for i in (0, 1))
-    export_fold(output / "test", refit, splits[2], "test", config)
+    export_fold(output, train, test, "test", config, create=False)
     summary = [
         {
             "split": label,
@@ -294,7 +290,7 @@ def generate(config, output):
             "empty_set_days": int(d.n_orders.eq(0).sum()),
             "new_demand_share": float(d.D_new.sum() / d.D.sum()),
         }
-        for label, (d, o) in zip(("train", "validation", "test"), splits)
+        for label, (d, o) in zip(("train", "test"), (train, test))
     ]
     save_json(output / "summary.json", summary)
     return summary

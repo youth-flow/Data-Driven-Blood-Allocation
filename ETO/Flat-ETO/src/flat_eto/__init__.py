@@ -1,5 +1,5 @@
 """Flat-ETO public model interface."""
 
-from .model import FlatProbabilityMLP
+from .model import FlatPatientPMF
 
-__all__ = ["FlatProbabilityMLP"]
+__all__ = ["FlatPatientPMF"]

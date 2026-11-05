@@ -1,7 +1,0 @@
-extends: main.yaml
-schema_version: 1
-data_root: ../../synthetic/generated/reference
-output_root: ../../outputs
-model:
-  head:
-    output_upper_bound: 36.5

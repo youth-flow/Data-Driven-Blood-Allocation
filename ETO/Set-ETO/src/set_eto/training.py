@@ -2,7 +2,6 @@
 
 import numpy as np
 import torch
-from copy import deepcopy
 from dat_study.runtime import device_for, loader, to_device, score_prediction, prepare_fit, cpu_state
 from .model import DeepSetsDistribution, distribution_nll
 from .distributions import distribution_quantiles
@@ -79,27 +78,8 @@ def new_model(data, config):
 
 
 def fit_predict(data, config, recipe=None):
-    families = config["set_eto"].get("distributions")
-    if families:
-        if data.eval_role == "test" and (recipe is None or "selection" not in recipe):
-            raise ValueError("Test Set-ETO requires a frozen distribution family")
-        choices = [recipe["selection"]["distribution"]] if recipe and "selection" in recipe else families
-        best, trials = None, []
-        from dat_study.selection import validation_score
-
-        for family in choices:
-            selected = deepcopy(config)
-            selected["set_eto"].pop("distributions")
-            selected["set_eto"]["distribution"] = family
-            prediction, result, artifact = fit_predict(data, selected, recipe)
-            score = validation_score(prediction, data, config) if data.eval_role == "validation" else None
-            trials.append({"distribution": family, "validation_score": score, "epochs": result["epochs"]})
-            if best is None or (score is not None and score > best[0]):
-                best = (score, family, prediction, result, artifact)
-        _, family, prediction, result, artifact = best
-        result.update(selection={"distribution": family}, family_trials=trials)
-        artifact["distribution"] = family
-        return prediction, result, artifact
+    if config["set_eto"]["distribution"] != "HurdleGamma":
+        raise ValueError("The S4 protocol fixes Set-ETO to HurdleGamma")
     training, evaluation, validation, epochs = prepare_fit(data, config, recipe)
     model = new_model(data, config)
     result = fit_daily(model, "Set-ETO", training, data, config, epochs, validation)

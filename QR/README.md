@@ -1,5 +1,7 @@
-# QR
+# QR / LQR / GBQR / DeepQR
 
-LQR、GBQR、DeepQR 各自独立实现。DeepQR 为逐条申请编码、求和池化、日级融合和单调分位数输出；不是普通日级 MLP。
+- **LQR**：19 维 `psi(A,X)` 上的线性分位数回归，固定 `alpha`。
+- **GBQR**：19 维 `psi(A,X)` 上的固定梯度提升分位数回归。
+- **DeepQR**：患者编码 + **Mean Pool** + 日级编码 → 标量分位数，直接 pinball 训练；不是普通日级 MLP。
 
-统一入口：根目录 `scripts/run_synthetic_experiments.py`。各模型也有自己的 `scripts/run_experiment.py`。
+`psi` 固定为 19 维：8 维 `X` + `u²,v²,uv,ur,vr,min/max(u),min/max(v),min/max(r)`。三者在主协议中均为固定配置，不做网格搜索。

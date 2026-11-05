@@ -1,10 +1,6 @@
-schema_version: 1
+schema_version: 2
 seed: 0
 taus:
-- 0.5
-- 0.6
-- 0.7
-- 0.8
 - 0.9
 targets:
 - 260
@@ -12,6 +8,7 @@ targets:
 - 300
 - 320
 - 340
+scenario: S4
 data_root: ../synthetic/generated/reference
 output_root: ../outputs
 model_configs:
@@ -24,44 +21,3 @@ model_configs:
   LQR: ../QR/LQR/configs/main.yaml
   GBQR: ../QR/GBQR/configs/main.yaml
   DeepQR: ../QR/DeepQR/configs/main.yaml
-model_overrides:
-  wSAA:
-    wsaa:
-      grid:
-        min_samples_leaf:
-        - 5
-        - 10
-        - 20
-        - 50
-        max_features:
-        - 0.33
-        - 0.67
-        - 1.0
-  Set-ETO:
-    set_eto:
-      distributions:
-      - Normal
-      - HurdleGamma
-  DAT:
-    model:
-      head:
-        output_upper_bound: 36.5
-  DeepQR:
-    deep_qr:
-      output_upper_bound: 36.5
-  GBQR:
-    gbqr:
-      grid:
-        learning_rate:
-        - 0.03
-        - 0.06
-        - 0.1
-        max_leaf_nodes:
-        - 7
-        - 15
-        min_samples_leaf:
-        - 20
-        max_iter:
-        - 200
-        - 500
-selection_metric: pinball

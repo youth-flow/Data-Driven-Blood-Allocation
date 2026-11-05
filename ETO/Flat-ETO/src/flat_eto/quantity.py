@@ -1,61 +1,57 @@
-"""Flat-ETO convolution plus shared empirical quantity estimation."""
+"""Patient PMF convolution and weighted empirical new-demand CDF."""
 
 import numpy as np
-from dat_study.quantity import ConditionalQuantityPMF as ConditionalQuantityPMF, quantity_keys as quantity_keys
 
 
-def independent_mixture_pmf(probabilities, positive_pmfs):
-    """Convolve (1-p) delta_0 + p F_positive without circular aliasing."""
+def convolve_patient_pmfs(probabilities):
+    """Convolve one seven-class PMF per visible patient on the 0.5 grid."""
     probabilities = np.asarray(probabilities, dtype=float)
-    if probabilities.ndim != 1 or len(probabilities) != len(positive_pmfs):
-        raise ValueError("Probabilities and positive PMFs must align.")
-    if not np.isfinite(probabilities).all() or ((probabilities < 0) | (probabilities > 1)).any():
-        raise ValueError("Probabilities must lie in [0,1].")
-    checked = []
-    for pmf in positive_pmfs:
-        pmf = np.asarray(pmf, dtype=float)
-        if (
-            pmf.ndim != 1
-            or not len(pmf)
-            or not np.isfinite(pmf).all()
-            or (pmf < 0).any()
-            or not np.isclose(pmf.sum(), 1.0)
-        ):
-            raise ValueError("Invalid positive PMF.")
-        if pmf[0] != 0:
-            raise ValueError("Conditional positive PMF must have zero mass at zero.")
-        checked.append(pmf)
-    max_sum = sum(len(pmf) - 1 for p, pmf in zip(probabilities, checked) if p > 0)
-    if max_sum == 0:
-        return np.array([1.0])
-    fft_size = 1 << max_sum.bit_length()
-    characteristic = np.ones(fft_size // 2 + 1, dtype=np.complex128)
-    cache = {}
-    for probability, pmf in zip(probabilities, checked):
-        if probability == 0:
-            continue
-        key = (pmf.shape, pmf.tobytes())
-        transformed = cache.get(key)
-        if transformed is None:
-            transformed = np.fft.rfft(pmf, n=fft_size)
-            cache[key] = transformed
-        characteristic *= (1.0 - probability) + probability * transformed
-    result = np.fft.irfft(characteristic, n=fft_size)[: max_sum + 1]
-    if result.min() < -1e-9:
-        raise RuntimeError("Numerically invalid convolution.")
-    result = np.maximum(result, 0.0)
-    result /= result.sum()
-    # np.dot loads a second Intel OpenMP runtime after CUDA training in this
-    # Windows environment; this equivalent elementwise sum avoids BLAS entirely.
-    expected = sum(p * np.sum(np.arange(len(pmf)) / 2.0 * pmf) for p, pmf in zip(probabilities, checked))
-    obtained = float(np.sum(np.arange(len(result)) / 2.0 * result))
-    if not np.isclose(expected, obtained, rtol=1e-8, atol=1e-7):
-        raise RuntimeError("FFT mean does not match sum of individual means.")
-    return result
+    if probabilities.ndim != 2 or probabilities.shape[1] != 7:
+        raise ValueError("Patient probabilities must have shape [N,7]")
+    if not np.isfinite(probabilities).all() or (probabilities < 0).any():
+        raise ValueError("Invalid patient probabilities")
+    probabilities = probabilities / probabilities.sum(axis=1, keepdims=True).clip(1e-300)
+    pmf = np.array([1.0])
+    for row in probabilities:
+        pmf = np.convolve(pmf, row)
+    return pmf
 
 
-def pmf_quantile(pmf, tau=0.9):
-    # Numerical rounding can leave total mass infinitesimally below one.
-    cumulative = np.cumsum(pmf)
-    cumulative[-1] = 1.0
-    return min(int(np.searchsorted(cumulative, tau, side="left")), len(pmf) - 1) / 2.0
+class NewDemandCDF:
+    """Weighted empirical CDF of the continuous residual demand R_t."""
+
+    def __init__(self, values, weights):
+        values = np.asarray(values, dtype=float)
+        weights = np.asarray(weights, dtype=float)
+        if values.ndim != 1 or weights.shape != values.shape or not len(values):
+            raise ValueError("Invalid residual-demand sample")
+        order = np.argsort(values, kind="stable")
+        self.values = values[order]
+        cumulative = np.cumsum(weights[order])
+        total = float(cumulative[-1])
+        if total <= 0:
+            raise ValueError("Residual-demand weights must have positive mass")
+        self.cumulative = cumulative / total
+
+    def __call__(self, point):
+        index = int(np.searchsorted(self.values, float(point), side="right"))
+        return 0.0 if index == 0 else float(self.cumulative[index - 1])
+
+
+def flat_quantile(patient_probabilities, new_demand: NewDemandCDF, tau, upper):
+    pmf = convolve_patient_pmfs(patient_probabilities)
+    grid = 0.5 * np.arange(len(pmf))
+
+    def cdf(point):
+        return float(np.sum(pmf * np.array([new_demand(point - atom) for atom in grid])))
+
+    if cdf(float(upper)) < tau:
+        return float(upper)
+    low, high = 0.0, float(upper)
+    for _ in range(50):
+        middle = 0.5 * (low + high)
+        if cdf(middle) >= tau:
+            high = middle
+        else:
+            low = middle
+    return float(high)

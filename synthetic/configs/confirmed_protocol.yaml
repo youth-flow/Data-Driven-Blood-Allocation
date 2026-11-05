@@ -1,6 +1,8 @@
-protocol_version: 2
+protocol_version: 4
 status: implemented
-generator_family: compact_bounded_order_mixture
+scenario: S4
+primary_tau: 0.9
+generator_family: compact_bounded_order_mixture_s4
 training_mode: direct_daily_scalar_quantile
 data_access: fully_artificial_only
 sampling:
@@ -19,22 +21,15 @@ sampling:
   inventory_noise_half_width: 70.0
   peer_kernel_bandwidth: 0.25
 scenarios:
-  S1:
-    context: 0.0
-    peer: 0.0
-    shock: 0.0
-  S2:
-    context: 1.0
-    peer: 0.0
-    shock: 0.0
-  S3:
-    context: 1.0
-    peer: 1.5
-    shock: 0.0
   S4:
     context: 1.0
     peer: 1.5
     shock: 0.8
+  C0:
+    context: 0.0
+    peer: 0.0
+    shock: 0.0
+    calibration: true
 dat:
   patient_blocks: 1
   cross_blocks: 1
@@ -78,6 +73,8 @@ profiles:
     radius: 100.0
 theory_experiments:
   tau: 0.9
+  scenario: S4
+  calibration_scenario: C0
   train_sizes:
   - 500
   - 1000
@@ -107,9 +104,7 @@ theory_experiments:
     checkpoint_selection: original_full_training_pinball
     early_stopping_on_test_or_oracle: false
   estimation:
-    main_scenarios:
-    - S2
-    - S3
+    calibration_repetitions: 200
     hidden_width: 32
     realizable_calibration: constant_conditional_quantile
     exact_erm_calibration: bias_only_DAT_subclass
@@ -120,10 +115,6 @@ theory_experiments:
     report_tail_risk_across_training_datasets: true
     full_explicit_bound_requires_computed_constants: true
   approximation:
-    scenarios:
-    - S2
-    - S3
-    - S4
     hidden_widths:
     - 16
     - 32
@@ -140,15 +131,13 @@ theory_experiments:
     record:
     - oracle_L1
     - oracle_L2
-    - sampled_max_error
-    - achievable_excess_pinball
+    - evaluation_point_max
+    - attainable_excess_pinball
     claim: achievable_error_not_exact_class_optimum
     transfer_weights_to_other_experiments: false
     training_contexts: 10000
+    evaluation_contexts: 50000
   joint_consistency:
-    scenarios:
-    - S2
-    - S3
     hidden_width_rule: max(1, floor(32 * sqrt(T / 2000)))
     radius_rule: 100 * (actual_parameters / base_parameters) ** 2
     fixed_width_controls:
@@ -165,70 +154,39 @@ theory_experiments:
     width_anchor: 32
     sample_anchor: 2000
     exponent: 0.5
+    operational_regret_target: 300
 performance_experiments:
-  taus:
-  - 0.5
-  - 0.6
-  - 0.7
-  - 0.8
-  - 0.9
-  optional_tail_tau: 0.95
+  scenario: S4
+  tau: 0.9
   targets:
   - 260
   - 280
   - 300
   - 320
   - 340
-  n_train: 2000
-  n_validation: 500
+  n_train: 2500
   n_test: 3000
-  refit_with_validation: true
-  final_fit_days: 2500
   independent_data_repetitions: 10
   model_seeds:
   - 0
   - 1
   - 2
-  primary_metric: P_vs_same_fit_sample_SAA
-  secondary_metrics:
-  - operational_regret
-  - pinball
-  - coverage
-  - mean_q
-  - zero_q_share
-  - runtime
-  selection_metric: validation_pinball
-  same_predeclared_validation_budget: true
-  max_validation_candidates_per_method: 12
-  neural_search:
-    learning_rates:
-    - 0.0001
-    - 0.0003
-    - 0.001
-    batch_sizes:
-    - 32
-    - 64
-    - 128
-    - 256
-    max_epochs: 240
-    patience: 30
-  set_eto_search:
-    learning_rates:
-    - 0.0001
-    - 0.0003
-    - 0.001
-    batch_sizes:
-    - 64
-    - 128
-    family_count_included_in_budget: true
-  paired_test_days: true
-  average_model_seeds_within_data_repetition_first: true
+  hyperparameter_search: false
+  validation_selection: false
+  primary_metric: MeanCost
+  secondary_metric: SL_G
+  stochastic_methods:
+  - DAT
+  - DeepQR
+  - Flat-ETO
+  - Set-ETO
+  - wSAA
+  deterministic_methods:
+  - SAA
+  - Rolling-SAA
+  - LQR
+  - GBQR
   comparison:
-    scenarios:
-    - S1
-    - S2
-    - S3
-    - S4
     methods:
     - DAT
     - SAA
@@ -239,34 +197,19 @@ performance_experiments:
     - LQR
     - GBQR
     - DeepQR
-    set_eto_primary_families:
-    - Normal
-    - HurdleGamma
-    set_eto_discrete_sensitivity_family: NegativeBinomial_plus_uniform_grid_cell
-    historical_receipt: excluded_no_observed_receipts
+    set_eto_distribution: HurdleGamma
   ablation:
-    scenarios:
-    - S2
-    - S3
-    - S4
     variants:
     - full
     - no_self_attention
     - mean_pool
     - sum_pool
     - no_day_query
-    equal_capacity_diagnostic:
-    - mean_pool
-    - sum_pool
-    equal_capacity_relative_tolerance: 0.05
+    - mean_pool_param_matched
+    - sum_pool_param_matched
     same_input_information: true
     retrain_every_variant: true
   information:
-    scenarios:
-    - S1
-    - S2
-    - S3
-    - S4
     levels:
     - L0
     - L1
@@ -277,16 +220,14 @@ performance_experiments:
     remove_count_leakage_for_L0: true
     retrain_every_level: true
 implementation_gates:
-- new_generator_and_fixed_scaling_export
-- conditional_distribution_oracle_and_error_reporting
-- scalar_tau_suite_and_pinball_selection
-- continuous_remainder_Flat_ETO
-- continuity_aware_Set_ETO_families
-- theory_training_and_risk_evaluation_runner
-- mask_invariance_projection_and_resume_tests
-- small_six_group_end_to_end_audit
-- formal_run_manifest_frozen_before_test
+- s4_only_generator_and_split
+- s4_oracle_with_joint_shock_integration
+- fixed_configuration_no_search
+- nine_methods_with_19d_psi
+- seven_dat_structural_variants
+- five_information_levels
+- mean_cost_and_sl_g_only
+- theory_t1_c0_t1_dat_t2_t3
 theory_source: DAT theory PDF, 2026-11-03, equations 6-7 and theorem 10
-implementation_gates_status: implemented_check_with_six_group_smoke_before_formal_run
 theory_pdf_sha256: a1d2ca8256fa577aa37704afcdc8619870f4b6e5c75619703398fd56e0bd3613
-generator_version: 3
+generator_version: 4

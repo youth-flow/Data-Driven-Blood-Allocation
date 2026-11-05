@@ -39,7 +39,7 @@ def load_config(path, _visited=None):
     parent = config.pop("extends", None)
     if parent is not None:
         config = _merge(load_config(path.parent / parent, visited), config)
-    if config.get("schema_version") != 1:
+    if config.get("schema_version") not in {1, 2}:
         raise ValueError("Unsupported experiment configuration version")
     for key in ("data_root", "output_root"):
         config[key] = str((path.parent / config[key]).resolve())

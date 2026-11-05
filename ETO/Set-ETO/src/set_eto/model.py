@@ -56,7 +56,8 @@ class DeepSetsDistribution(nn.Module):
     def forward(self, batch):
         embedded = [layer(batch["order_cat"][:, :, index]) for index, layer in enumerate(self.embeddings)]
         patient = self.phi(torch.cat([batch["order_num"], *embedded], dim=-1))
-        pooled = (patient * batch["order_mask"].unsqueeze(-1)).sum(dim=1)
+        mask = batch["order_mask"].to(patient.dtype)
+        pooled = (patient * mask.unsqueeze(-1)).sum(dim=1) / mask.sum(dim=1, keepdim=True).clamp_min(1.0)
         day = self.day_encoder(batch.get("day_features", batch["day_num"]))
         raw = self.head(torch.cat([pooled, day], dim=-1))
         floor = self.parameter_floor

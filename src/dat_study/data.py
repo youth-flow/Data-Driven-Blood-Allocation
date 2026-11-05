@@ -27,7 +27,7 @@ class FoldData:
     def __init__(self, directory):
         self.directory = Path(directory).resolve()
         self.schema = read_json(self.directory / "data_feature_schema.json")
-        if self.schema.get("schema_version") not in {"morning_t_v1", "synthetic_axid_v2"}:
+        if self.schema.get("schema_version") not in {"morning_t_v1", "synthetic_axid_v2", "synthetic_axid_v3"}:
             raise ValueError("Unsupported data contract")
         manifest = read_json(self.directory / "manifest.json")
         if not manifest.get("complete"):
@@ -40,7 +40,9 @@ class FoldData:
         self.state = read_json(self.directory / "preprocessing_state.json")
         # The synthetic protocol fixes X=(c1,c2,I,N/M,sum u/M,sum v/M,mean r,mean r^2).
         # Real-derived folds retain the historical layout with inventory appended last.
-        self.inventory_position = 2 if self.schema.get("schema_version") == "synthetic_axid_v2" else "end"
+        self.inventory_position = (
+            2 if self.schema.get("schema_version") in {"synthetic_axid_v2", "synthetic_axid_v3"} else "end"
+        )
         if self.state["feature_fit_end"] != self.split["train_end"]:
             raise ValueError("Feature fitting and training boundary mismatch")
         self.eval_role = self.split["evaluation_role"]

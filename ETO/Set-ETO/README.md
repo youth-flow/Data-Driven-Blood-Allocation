@@ -1,12 +1,17 @@
 # Set-ETO
 
-本模型的 configs、scripts、src 独立维护，不导入任何其他模型包。共用根目录公共数据合同和评价。
-Normal、NegativeBinomial、HurdleGamma 在本目录内部实现。configs/normal.yaml、negative_binomial.yaml、hurdle_gamma.yaml 可单独运行；合成总配置也支持在验证集上选择分布族。
+固定结构：
+
+- 患者共享 MLP → **有效患者 Mean Pool**（`sum/mask.sum`）；
+- 日级特征 MLP；
+- 固定 **HurdleGamma** 分布头；
+- 直接输出 `tau=0.9` 的条件分位数；
+- 不做 Normal/NB 家族选择，不做验证集选优。
+
+独立入口：
 
 ```powershell
-python ETO/Set-ETO/scripts/run_experiment.py --data-root synthetic/generated/reference --fold validation --name set-eto_check --smoke
+python ETO/Set-ETO/scripts/run_experiment.py --config ETO/Set-ETO/configs/main.yaml --fold validation --name seteto_check --smoke
 ```
 
-正式运行去掉 `--smoke`；测试时指定 `--fold test --recipe-dir outputs/<development-run>`。
-根目录合成总入口统一设定六个 τ；独立运行以本目录自己的配置为准。
-权重、逐日预测和汇总指标仅保存在本机忽略目录中。
+主 S4 实验从根目录统一入口启动。

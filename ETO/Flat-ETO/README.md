@@ -1,11 +1,17 @@
 # Flat-ETO
 
-本模型的 configs、scripts、src 独立维护，不导入任何其他模型包。共用根目录公共数据合同和评价。
+固定结构：
+
+- 每名患者使用 `[u_i,v_i,r_i,psi(A,X)]`，共 22 维；
+- 七类患者用血 PMF（0, 0.5, …, 3）；
+- 19 维 `psi` 上的随机森林拟合连续新增需求 R；
+- 患者 PMF 卷积与新增需求加权经验 CDF 合成总量分布，取 `tau=0.9`；
+- 训练额外读取授权的患者 `Y_i`，不读取测试标签。
+
+独立入口：
 
 ```powershell
-python ETO/Flat-ETO/scripts/run_experiment.py --data-root synthetic/generated/reference --fold validation --name flat-eto_check --smoke
+python ETO/Flat-ETO/scripts/run_experiment.py --config ETO/Flat-ETO/configs/main.yaml --fold validation --name flat_check --smoke
 ```
 
-正式运行去掉 `--smoke`；测试时指定 `--fold test --recipe-dir outputs/<development-run>`。
-根目录合成总入口统一设定六个 τ；独立运行以本目录自己的配置为准。
-权重、逐日预测和汇总指标仅保存在本机忽略目录中。
+主 S4 实验从根目录统一入口启动。

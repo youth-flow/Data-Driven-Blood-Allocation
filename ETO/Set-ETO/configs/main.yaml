@@ -1,23 +1,13 @@
-schema_version: 1
+schema_version: 2
 seed: 42
-taus:
-- 0.5
-- 0.6
-- 0.7
-- 0.8
-- 0.9
-targets:
-- 260
-- 280
-- 300
-- 320
-- 340
+taus: [0.9]
+targets: [260, 280, 300, 320, 340]
 method: Set-ETO
 data_root: ../../../data/processed
 output_root: ../../../outputs
 training:
   epochs: 90
-  batch_size: 32
+  batch_size: 128
   learning_rate: 0.0003
   weight_decay: 0.0001
   patience: 15
@@ -25,7 +15,7 @@ training:
   device: auto
   threads: 4
 set_eto:
-  distribution: Normal
+  distribution: HurdleGamma
   patient_hidden_dims:
   - 96
   - 48

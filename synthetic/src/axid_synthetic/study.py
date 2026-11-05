@@ -1,4 +1,4 @@
-"""Root entry for the six fully synthetic experiment groups."""
+"""Root entry for the S4-only theory (T1-T3) and performance (P1-P3) experiments."""
 
 import argparse
 from pathlib import Path
@@ -8,7 +8,9 @@ import json
 import yaml
 import sys
 from importlib.metadata import version, PackageNotFoundError
+
 from dat_study.io import save_json, read_json
+
 from .jobs import source_fingerprint
 
 THEORY = ["estimation", "approximation", "consistency"]
@@ -24,16 +26,12 @@ def main(argv=None):
     parser.add_argument("--name", required=True)
     parser.add_argument("--protocol", type=Path, default=root / "synthetic/configs/confirmed_protocol.yaml")
     parser.add_argument("--output-root", type=Path, default=root / "outputs")
-    parser.add_argument("--scenarios", nargs="+", choices=["S1", "S2", "S3", "S4", "C0"])
     parser.add_argument("--methods", nargs="+")
     parser.add_argument("--repetitions", type=int)
     parser.add_argument("--repeat-start", type=int, default=0)
     parser.add_argument("--train-sizes", nargs="+", type=int)
     parser.add_argument("--widths", nargs="+", type=int)
     parser.add_argument("--model-seeds", nargs="+", type=int)
-    parser.add_argument("--epochs", type=int)
-    parser.add_argument("--patience", type=int)
-    parser.add_argument("--candidate-limit", type=int)
     parser.add_argument("--eval-days", type=int)
     parser.add_argument("--data-seed", type=int, default=20261102)
     parser.add_argument("--device", default="auto")
@@ -56,8 +54,6 @@ def main(argv=None):
         any(x < 0 for x in args.model_seeds) or len(set(args.model_seeds)) != len(args.model_seeds)
     ):
         raise ValueError("Model seeds must be unique nonnegative integers")
-    if any(value is not None and value < 1 for value in (args.epochs, args.patience, args.candidate_limit)):
-        raise ValueError("Epochs, patience and candidate limit must be positive")
     if args.threads < 1:
         raise ValueError("threads must be positive")
     from dat_study.config import METHODS

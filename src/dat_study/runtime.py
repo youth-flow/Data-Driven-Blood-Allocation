@@ -70,7 +70,5 @@ def prepare_fit(data, config, recipe=None):
     torch.set_num_threads(config["training"]["threads"])
     training, evaluation = DailySets(data, "train"), DailySets(data, "eval")
     validation = evaluation if data.eval_role == "validation" else None
-    if data.eval_role == "test" and recipe is None:
-        raise ValueError("Final-year fitting requires a frozen development recipe")
-    epochs = int(recipe["epochs"] if recipe else config["training"]["epochs"])
+    epochs = int(config["training"]["epochs"])
     return training, evaluation, validation, epochs

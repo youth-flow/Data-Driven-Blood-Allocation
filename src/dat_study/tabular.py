@@ -12,6 +12,70 @@ def ordered_quantiles(values):
     return np.sort(np.maximum(values, 0), axis=1)
 
 
+class PsiFeatures:
+    """The fixed 19-dimensional pre-decision summary psi(A,X) from the S4 protocol."""
+
+    columns = [
+        "u2",
+        "v2",
+        "uv",
+        "ur",
+        "vr",
+        "u_min",
+        "u_max",
+        "v_min",
+        "v_max",
+        "r_min",
+        "r_max",
+    ]
+
+    def fit(self, data):
+        return self
+
+    def _daily_summary(self, data, daily):
+        orders = data.orders[data.orders.decision_day.isin(daily.decision_day)].copy()
+        orders["u"] = orders["申请用血量"].to_numpy(float) / 6.0
+        orders["v"] = orders["申请备血量"].to_numpy(float) / 8.0
+        orders["r"] = orders["clinical_risk"].to_numpy(float)
+        orders["u2"] = orders["u"] ** 2
+        orders["v2"] = orders["v"] ** 2
+        orders["uv"] = orders["u"] * orders["v"]
+        orders["ur"] = orders["u"] * orders["r"]
+        orders["vr"] = orders["v"] * orders["r"]
+        summary = orders.groupby("decision_day").agg(
+            u2=("u2", "mean"),
+            v2=("v2", "mean"),
+            uv=("uv", "mean"),
+            ur=("ur", "mean"),
+            vr=("vr", "mean"),
+            u_min=("u", "min"),
+            u_max=("u", "max"),
+            v_min=("v", "min"),
+            v_max=("v", "max"),
+            r_min=("r", "min"),
+            r_max=("r", "max"),
+        )
+        aligned = daily[["decision_day"]].merge(summary, left_on="decision_day", right_index=True, how="left")
+        return aligned[self.columns].fillna(0.0).to_numpy(float)
+
+    def transform(self, data, daily):
+        return np.column_stack([data.context(daily), self._daily_summary(data, daily)])
+
+    def patient_input(self, data, orders):
+        unique_days = (
+            data.daily.loc[data.daily.decision_day.isin(orders.decision_day), ["decision_day", *data.day_cols, "It"]]
+            .drop_duplicates("decision_day")
+            .reset_index(drop=True)
+        )
+        psi = self.transform(data, unique_days)
+        lookup = {day: value for day, value in zip(unique_days.decision_day.to_numpy(), psi)}
+        u = orders["申请用血量"].to_numpy(float) / 6.0
+        v = orders["申请备血量"].to_numpy(float) / 8.0
+        r = orders["clinical_risk"].to_numpy(float)
+        psi_rows = np.row_stack([lookup[day] for day in orders.decision_day.to_numpy()])
+        return np.column_stack([u, v, r, psi_rows])
+
+
 class TabularFeatures:
     def __init__(self, input_set="basic"):
         if input_set not in {"basic", "enhanced"}:

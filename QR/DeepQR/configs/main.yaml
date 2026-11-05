@@ -1,24 +1,13 @@
-schema_version: 1
+schema_version: 2
 seed: 42
-taus: &id001
-- 0.5
-- 0.6
-- 0.7
-- 0.8
-- 0.9
-- 0.95
-targets:
-- 260
-- 280
-- 300
-- 320
-- 340
+taus: [0.9]
+targets: [260, 280, 300, 320, 340]
 method: DeepQR
 data_root: ../../../data/processed
 output_root: ../../../outputs
 training:
   epochs: 90
-  batch_size: 32
+  batch_size: 128
   learning_rate: 0.0003
   weight_decay: 0.0001
   patience: 15
@@ -36,8 +25,7 @@ deep_qr:
   - 64
   embedding_dim_cap: 32
   dropout: 0.1
-  output_upper_bound: 150.0
+  output_upper_bound: 36.5
 loss:
-  type: softplus_pinball
-  beta: 2.0
-  taus: *id001
+  type: pinball
+  taus: [0.9]

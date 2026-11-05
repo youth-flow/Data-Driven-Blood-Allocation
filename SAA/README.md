@@ -1,5 +1,7 @@
-# SAA
+# SAA / wSAA / Rolling-SAA
 
-SAA、wSAA、Rolling-SAA 各自独立实现，共用根目录数据接口与评价。
+- **SAA**：训练需求的经验 `tau=0.9` 分位数。
+- **wSAA**：19 维 `psi(A,X)` 上的固定随机森林，叶节点权重给出条件经验分位数；每个重复使用固定训练种子。
+- **Rolling-SAA**：训练集最后 `window=28` 天的经验分位数，固定不变；不使用测试实现需求更新，不使用星期过滤。
 
-统一入口：根目录 `scripts/run_synthetic_experiments.py`。各模型也有自己的 `scripts/run_experiment.py`。
+三者均不做超参数搜索；主 S4 实验从根目录统一入口启动。

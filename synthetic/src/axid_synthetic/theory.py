@@ -269,14 +269,7 @@ def run_theory(args, protocol, generator, root, output, groups, code_hash):
         return max(1, int(joint["width_anchor"] * (n / joint["sample_anchor"]) ** joint["exponent"]))
 
     for group in groups:
-        configured = (
-            settings["estimation"].get("main_scenarios")
-            if group == "estimation"
-            else settings["approximation" if group == "approximation" else "joint_consistency"]["scenarios"]
-        )
-        scenarios = args.scenarios or (["S2"] if args.smoke else configured)
-        if group == "estimation" and (args.scenarios is None or "C0" in args.scenarios):
-            scenarios = list(dict.fromkeys([*scenarios, "C0"]))
+        scenarios = ["C0", "S4"] if group == "estimation" else ["S4"]
         for scenario in scenarios:
             for repeat in range(args.repeat_start, args.repeat_start + repeats):
                 g = {**generator, "max_visible_orders": profile["max_orders"], "scenario": scenario}
@@ -348,10 +341,6 @@ def run_theory(args, protocol, generator, root, output, groups, code_hash):
                                     cfg["constraints"][key] = radius
                             cfg["training"].update(settings["training"])
                             cfg["training"].update(device=args.device, threads=args.threads)
-                            if args.epochs is not None:
-                                cfg["training"]["epochs"] = args.epochs
-                            if args.patience is not None:
-                                cfg["training"]["patience"] = args.patience
                             if args.smoke:
                                 cfg["training"].update(epochs=1, batch_size=8)
                             if mode == "exact_bias_only":

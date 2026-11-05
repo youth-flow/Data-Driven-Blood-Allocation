@@ -1,133 +1,86 @@
-# DAT numerical study
+# DAT S4 numerical study
 
-配置定义参数，脚本提供入口，模型在各自目录实现；根目录统一发动实验。真实数据和完全合成数据分别管理。
-
-## 协作分支与节点提交
-
-当前工作分支为 `yyx`，跟踪远端 `origin/yyx`。后续开发在此分支进行，合并到 `main` 另行安排。
-完成一个可验证的重要节点后，先运行对应检查与隐私审查，再自动执行 add、commit、push 到 `yyx`。
-节点包括独立功能完成、接口调整完成或实验协议定稿；不逐个临时编辑提交，不强制推送，不提交失败或未完成的节点。
-只提交源代码、配置、文档和人工测试。原始数据、处理数据、生成样本、权重和结果始终留在本机。
+配置定义参数，脚本提供入口，模型在各自目录实现；根目录统一发动实验。正式 Synthetic 协议为 **S4-only**，主分位数为 `tau=0.9`，最终性能指标只有 **MeanCost** 与 **SL_G**。
 
 ## 目录
 
 ```text
-DAT/                         # 主模型、结构消融、信息消融
-ETO/
-  Set-ETO/                   # Normal / HurdleGamma / NB及连续平滑NB分布族
-  Flat-ETO/
-SAA/
-  SAA/
-  wSAA/
-  Rolling-SAA/
-QR/
-  LQR/
-  GBQR/
-  DeepQR/                    # Deep Sets + 单调多分位数输出，不是普通日级 MLP
-Historical-Receipt/          # 已观测历史到货量的直接成本参照
+DAT/                         # 唯一主模型 DAT（含结构/信息干预）
+ETO/Set-ETO/                 # DeepSets + 固定 HurdleGamma
+ETO/Flat-ETO/                # 患者七类 PMF + 连续新增需求森林
+SAA/SAA/                     # 经验分位数
+SAA/wSAA/                    # 随机森林叶权重
+SAA/Rolling-SAA/             # 训练集末段固定窗口
+QR/LQR/                      # 线性分位数回归
+QR/GBQR/                     # 梯度提升分位数回归
+QR/DeepQR/                   # DeepSets 直接分位数
 synthetic/
-  configs/reference.yaml     # AXID 人工生成参数
-  scripts/generate.py
-  src/axid_synthetic/
-  generated/                 # 本机生成，Git 忽略
-configs/                     # 共同数据、τ、target、模型配置位置、实验级覆盖项
-scripts/                     # 总实验入口与隐私检查
-src/dat_study/               # 数据合同、评价、公共数值工具、调度
-tests/                      # 只使用人工数据的接口和隔离测试
-data/                       # 真实原表、完整预处理脚本、现行 processed；本次不改
-outputs/                    # 本机结果、配方和权重，Git 忽略
+  configs/confirmed_protocol.yaml   # S4 协议（2500 train / 3000 test, 10x3）
+  configs/reference.yaml            # 生成器参数
+  src/axid_synthetic/               # DGP、Oracle、T1-T3、P1-P3、report
+  generated/                        # 本机生成数据，Git 忽略
+configs/                     # 公共 τ、target、模型配置位置
+scripts/                     # 根入口
+src/dat_study/               # 数据合同、评价、运行底座
+tests/                       # 人工数据测试
+outputs/                     # 本机结果，Git 忽略
 ```
 
-每个模型有独立 `configs/main.yaml`、`scripts/run_experiment.py`、`src/<package>/`。不会导入其他模型包。
-根目录 `src` 不保存模型专属网络；共享特征变换和选择工具允许复用。
+## 协议要点
+
+- DGP：仅 **S4**，`(λ_ctx, λ_peer, ρ)=(1,1.5,0.8)`；`M=8, B=36.5`；C0 仅用于 T1 精确 ERM 校准。
+- 主 τ：`0.9`；辅助 τ 必须单独标记、单独拟合。
+- 性能数据：每次独立重复生成 **2,500 训练日 + 3,000 测试日**，不再有验证集；所有方法共用同一训练/测试日。
+- 统计：**10 个独立数据重复**；随机方法每份数据 **3 个固定训练 seed**；确定性方法只保留一个真实结果。
+- **无超参数搜索**：所有结构/训练/算法配置在运行前冻结、随结果归档。
+- 指标：`MeanCost = (1/3000)Σ c_t`，`SL_G = mean(I_end ≥ G)`；只有这两个数值列。
+- P1：9 个固定方法；P2：5 个主结构变体 + 2 个参数匹配辅助变体；P3：L0–L4。
+- T1：C0 200 重复精确 ERM + S4 完整 DAT 学习曲线；T2：S4 Oracle L1 随 P；T3：S4 固定/增长容量轨道。
 
 ## 安装
-
-Python >= 3.10，在工程根目录执行：
 
 ```powershell
 python -m pip install -e ".[dev,plots]"
 git config core.hooksPath .githooks
 ```
 
-无需安装本工程也可通过源码脚本运行；模型入口按自身位置寻找公共代码，从其他工作目录调用也有效。
-
-## 当前工作：简化 DAT 与纯合成六组实验
-
-按2026-11-03本机理论PDF实现唯一简化DAT：订单MLP、自注意力残差、日级仿射编码、
-交叉注意力残差、日级FFN残差、截断标量线性头。没有订单FFN、额外输出LN或三步走。
-五个τ各训练独立网络，主结果不排序修正。结构说明见[DAT/README.md](DAT/README.md)。
-
-[四份数值实验方案](数值实验方案/01_DAT_Architecture.md)及生成器v3均已实现：
-架构与接口见[01](数值实验方案/01_DAT_Architecture.md)，DGP与Oracle见[02](数值实验方案/02_Synthetic_DGP.md)，
-理论组见[03](数值实验方案/03_Theory_Experiments.md)，性能组见[04](数值实验方案/04_Performance_Experiments.md)。
-理论三组为估计误差、逼近能力、联合一致性；性能三组为基准比较、结构消融、信息价值。
-机器合同在 `synthetic/configs/confirmed_protocol.yaml`。
-DGP完全人工，有界、IID、非空集合、固定支持变换；不读取真实数据。
+## 运行
 
 ```powershell
 python synthetic/scripts/check_protocol.py
-python scripts/run_synthetic_experiments.py --family all --smoke --name six_group_smoke --device cpu --threads 1
-python scripts/run_synthetic_experiments.py --family theory --name theory_main
-python scripts/run_synthetic_experiments.py --family performance --name performance_main
+python scripts/run_synthetic_experiments.py --family theory --smoke --name s4_theory_smoke
+python scripts/run_synthetic_experiments.py --family performance --smoke --name s4_perf_smoke
+python scripts/run_synthetic_experiments.py --family theory --name theory_s4_main
+python scripts/run_synthetic_experiments.py --family performance --name performance_s4_main
+python scripts/run_synthetic_experiments.py --family all --name s4_all
 ```
 
-- 主τ为0.5、0.6、0.7、0.8、0.9；target为260、280、300、320、340。
-- 性能比较包含9种方法；Historical Receipt在合成实验中不伪造。
-- 性能配置只用验证pinball选择，在2500日从头重训后评价3000个独立测试场景。
-- 理论组分别研究固定类、容量增长、容量与样本联合增长；不把数值神经训练当成已认证精确ERM。
-- `--smoke` 只检验流程。`--resume` 验证并跳过完成任务；中断任务从头重跑，保留原attempt。
-- 正式默认理论200个独立数据重复、性能10个，各随机模型3个初始化，计算量较大。
-- 计划和参数已冻结；改变代码或参数必须换运行名。更多选项和输出见[synthetic/README.md](synthetic/README.md)。
+`--resume` 校验计划、配置和已完成文件散列；配置改变必须换新运行名。`--smoke` 只检验流程，不能报告为正式结果。
 
-独立模型入口需要先生成合成数据：
+## 输出
 
-```powershell
-python synthetic/scripts/generate.py --scenario S2 --output synthetic/generated/reference
-```
+`outputs/<name>/` 保存冻结计划、S4 数据、逐任务配方/结果、长表、汇总、图和 `study_complete.json`。
+主要文件：
 
-## 单独运行与 DAT 内部实验
+- `performance_metrics.csv`、`performance_summary.csv`
+- `paired_MeanCost_SL_differences.csv`、`paired_MeanCost_SL_summary.csv`
+- `theory_metrics.csv`、`T1_C0_summary.csv`、`T1_DAT_summary.csv`、`T2_summary.csv`、`T3_summary.csv`
+- `figures/`
 
-```powershell
-python DAT/scripts/run_experiment.py --config DAT/configs/synthetic.yaml --fold validation --variant mean_pool --name dat_mean --smoke
-python DAT/scripts/run_experiment.py --config DAT/configs/synthetic.yaml --fold validation --information L2 --name dat_L2 --smoke
-python QR/DeepQR/scripts/run_experiment.py --data-root synthetic/generated/reference --fold validation --name deepqr --smoke
-python ETO/Set-ETO/scripts/run_experiment.py --config ETO/Set-ETO/configs/hurdle_gamma.yaml --data-root synthetic/generated/reference --fold validation --name hurdle --smoke
-```
+生成数据、权重、结果全部 Git 忽略；只提交代码、配置、协议和人工测试。
 
-DAT 实验干预清单和信息分组见 [DAT/README.md](DAT/README.md)。DeepQR 是独立结构基准；DAT 内部的池化替换才是只改读出部分的消融。
+## 协作与提交
 
-## 真实数据接口保留
+当前工作分支为 `yyx`，跟踪 `origin/yyx`。完成一个可验证节点后，先运行测试、ruff 和隐私检查，再 add/commit/push。
+不逐临时编辑提交，不提交失败或未完成节点；原始表、processed 数据、生成样本、权重和结果始终留在本机。
 
-真实预处理全部位于 `data/数据预处理.py`，现行数据为 `data/processed`；没有复制、移动或重跑真实数据。
-原有时间折 val2017 / val2018 / val2019 / final2020 保留。验证折不能直接作为未参与选择的测试结果。
-
-```powershell
-python scripts/run_experiments.py --fold val2019 --methods DAT SAA wSAA Flat-ETO Set-ETO --name comparison --smoke
-python scripts/run_experiments.py --fold final2020 --recipe-dir outputs/comparison --name final2020
-```
-
-第二条必须指向正式开发运行，不能使用 smoke 配方。自定义派生折可通过 `--fold` 指定；测试角色一律要求此前冻结配方。
-原表只允许在用户授权的本机预处理任务中读取；训练模型只读取明确指定的派生数据。
-
-## 决策与统计
-
-统一决策 `q = max(Q_tau + target - I, 0)`；成本为期末库存相对 target 偏差的不对称惩罚。
-性能主指标为平均成本 `AC`（3000 天逐日成本的算术平均）与目标服务率 `SL_G`；SAA 使用相应训练部分的经验分位数。
-内部元数据保存 AC、SL_G、pinball、覆盖率、平均配送量、零配送比例；`P = 1 - AC / AC_SAA` 仅作内部诊断，不作为 P1–P3 的最终性能指标。
-Historical Receipt 直接评价实际 q，不把它转换成分位数，pinball 和覆盖率为空。
-LQR/GBQR 独立分位数使用预先固定的非负截断及排序纠正交叉；拟合、选参和测试使用相同规则。DAT保持独立标量结果，交叉比例直接报告。
-
-## 隐私与测试
+## 测试
 
 ```powershell
 python -m pytest
-python -m ruff check src tests DAT ETO SAA QR Historical-Receipt synthetic scripts data/数据预处理.py
-python -m ruff format --check src tests DAT ETO SAA QR Historical-Receipt synthetic scripts data/数据预处理.py
+python -m ruff check src tests DAT ETO SAA QR synthetic scripts
+python -m ruff format --check src tests DAT ETO SAA QR synthetic scripts
 python scripts/check_git_privacy.py --all-tracked
 ```
 
-测试只用人工数据，涵盖独立包加载、保存重载、测试标签隔离、信息屏蔽和历史配送直接评价。
-原始表、派生数据、生成样本、权重、结果、业务资料全部留在本机；`data` 中只有预处理源码允许进入 Git。
-Git 白名单和 hooks 同时检查暂存内容与推送的全部历史。合作者须设置 `core.hooksPath`；不得跳过保护或将真实明细贴入源码。
-旧清理脚本仍禁用。清理中间结果时不得删除模型目录、原始表或现行数据。
+`data/` 只保留原有真实数据预处理代码，不属于本 S4 实验；S4 实验不读取任何真实表。
