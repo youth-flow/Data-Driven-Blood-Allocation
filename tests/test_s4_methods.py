@@ -49,3 +49,12 @@ def test_psi_features_are_19d(s4_data):
     assert values.shape == (len(s4_data.daily_split("train")), 19)
     patient = features.patient_input(s4_data, s4_data.order_split("train").head(5))
     assert patient.shape[1] == 22
+
+
+def test_ablation_and_information_are_propagated():
+    root_config = load_config(ROOT / "configs/synthetic.yaml")
+    root_config["ablation"] = "mean_pool"
+    root_config["information"] = "L0"
+    selected = model_config(root_config, "DAT")
+    assert selected["ablation"] == "mean_pool"
+    assert selected["information"] == "L0"

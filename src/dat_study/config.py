@@ -90,6 +90,9 @@ def model_config(config, method):
             raise ValueError("Model configuration belongs to a different method")
         for key in ("data_root", "output_root", "seed", "taus", "targets"):
             selected[key] = deepcopy(config[key])
+        for key in ("ablation", "information"):
+            if key in config:
+                selected[key] = deepcopy(config[key])
         if "selection_metric" in config:
             selected["selection_metric"] = config["selection_metric"]
         # Optional common runtime overrides, e.g. CPU-only smoke verification.
