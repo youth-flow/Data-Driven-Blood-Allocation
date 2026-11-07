@@ -26,6 +26,41 @@ def sigmoid(x):
     return 1 / (1 + np.exp(-np.clip(x, -30.0, 30.0)))
 
 
+
+def mechanism_features(u, v, risk, surgery_type, c1, c2):
+    """Exact AXID-v3 H mechanism shared by the generator and the full oracle."""
+    u = np.asarray(u, float)
+    v = np.asarray(v, float)
+    risk = np.asarray(risk, float)
+    surgery_type = np.asarray(surgery_type, float)
+    z = (risk - 0.5) / 0.35
+    du = u[:, None] - u[None, :]
+    dv = v[:, None] - v[None, :]
+    kernel = np.exp(-(du**2 + dv**2) / (2.0 * 0.25**2))
+    np.fill_diagonal(kernel, 0.0)
+    peer = (kernel * z[None, :]).sum(1) / kernel.sum(1)
+    match = -((u - (0.5 + 0.3 * c1)) ** 2 + (v - (0.5 + 0.3 * c2)) ** 2) / (2.0 * 0.23**2)
+    match += 0.5 * (2.0 * surgery_type - 1.0) * c2
+    omega = np.exp(match - match.max())
+    omega /= omega.sum()
+    h = 0.55 * float((omega * z).sum()) + 0.25 * float((omega * z * peer).sum())
+    h += 0.20 * float((omega * (2.0 * u - 1.0) * (2.0 * surgery_type - 1.0)).sum())
+    return z, peer, omega, h
+
+
+def patient_parameters(u, v, risk, surgery_type, c1, c2, shock):
+    z, _, _, h = mechanism_features(u, v, risk, surgery_type, c1, c2)
+    length = -1.0 + 0.6 * u + 0.4 * v + 0.6 * z + 0.4 * surgery_type + 3.0 * h + 0.3 * c1 + 0.2 * c2
+    length = length + 0.45 * shock
+    quantity = sigmoid(-0.4 + 0.5 * u + 0.3 * v + h)
+    return length, quantity, h
+
+
+def new_parameters(h, zbar, c1, c2, shock):
+    p_new = sigmoid(-0.7 + 3.5 * h + 0.5 * zbar + 0.5 * c1 + 0.2 * c2 + 0.45 * shock)
+    pi_new = sigmoid(-0.1 + 1.2 * h + 0.3 * c2 + 0.15 * shock)
+    return p_new, pi_new
+
 def day_sample(rng):
     c1, c2 = rng.uniform(-1.0, 1.0, 2)
     n = 3 + int(rng.binomial(5, sigmoid(0.25 + 0.45 * c1)))
