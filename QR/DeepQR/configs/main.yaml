@@ -25,7 +25,7 @@ deep_qr:
   - 64
   embedding_dim_cap: 32
   dropout: 0.1
-  output_upper_bound: 36.5
+  output_upper_bound: 60.5
 loss:
   type: pinball
   taus: [0.9]

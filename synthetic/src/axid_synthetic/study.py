@@ -1,4 +1,4 @@
-"""Root entry for the S4-only theory (T1-T3) and performance (P1-P3) experiments."""
+"""Root entry for the frozen AXID-v3 performance protocol (P1-P3)."""
 
 import argparse
 from pathlib import Path
@@ -24,7 +24,7 @@ def main(argv=None):
     parser.add_argument("--family", choices=["theory", "performance", "all"], default="all")
     parser.add_argument("--group", choices=[*THEORY, *PERFORMANCE, "all"], default="all")
     parser.add_argument("--name", required=True)
-    parser.add_argument("--protocol", type=Path, default=root / "synthetic/configs/confirmed_protocol.yaml")
+    parser.add_argument("--protocol", type=Path, default=root / "synthetic/configs/confirmed_protocol_v3.yaml")
     parser.add_argument("--output-root", type=Path, default=root / "outputs")
     parser.add_argument("--methods", nargs="+")
     parser.add_argument("--repetitions", type=int)
@@ -33,7 +33,7 @@ def main(argv=None):
     parser.add_argument("--widths", nargs="+", type=int)
     parser.add_argument("--model-seeds", nargs="+", type=int)
     parser.add_argument("--eval-days", type=int)
-    parser.add_argument("--data-seed", type=int, default=20261102)
+    parser.add_argument("--data-seed", type=int, default=20261110)
     parser.add_argument("--device", default="auto")
     parser.add_argument("--threads", type=int, default=4)
     parser.add_argument("--smoke", action="store_true")
@@ -61,8 +61,15 @@ def main(argv=None):
     if args.methods and any(x not in METHODS or x == "Historical-Receipt" for x in args.methods):
         raise ValueError("Unknown method or unavailable historical receipts")
     protocol = yaml.safe_load(args.protocol.read_text(encoding="utf-8"))
-    generator = yaml.safe_load((root / "synthetic/configs/reference.yaml").read_text(encoding="utf-8"))
-    from .contract import validate_contract
+    reference = "reference_v3.yaml" if "v3" in args.protocol.name else "reference.yaml"
+    generator = yaml.safe_load((root / "synthetic" / "configs" / reference).read_text(encoding="utf-8"))
+    if int(generator.get("generator_version", 0)) == 3:
+        from .contract_v3 import validate_contract
+
+        if args.family != "performance":
+            raise ValueError("The AXID-v3 run in this build is performance-only")
+    else:
+        from .contract import validate_contract
 
     validate_contract(protocol, generator)
     allowed = (

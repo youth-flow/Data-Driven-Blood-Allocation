@@ -27,7 +27,12 @@ class FoldData:
     def __init__(self, directory):
         self.directory = Path(directory).resolve()
         self.schema = read_json(self.directory / "data_feature_schema.json")
-        if self.schema.get("schema_version") not in {"morning_t_v1", "synthetic_axid_v2", "synthetic_axid_v3"}:
+        if self.schema.get("schema_version") not in {
+            "morning_t_v1",
+            "synthetic_axid_v2",
+            "synthetic_axid_v3",
+            "synthetic_axid_axid_v3",
+        }:
             raise ValueError("Unsupported data contract")
         manifest = read_json(self.directory / "manifest.json")
         if not manifest.get("complete"):
@@ -41,7 +46,9 @@ class FoldData:
         # The synthetic protocol fixes X=(c1,c2,I,N/M,sum u/M,sum v/M,mean r,mean r^2).
         # Real-derived folds retain the historical layout with inventory appended last.
         self.inventory_position = (
-            2 if self.schema.get("schema_version") in {"synthetic_axid_v2", "synthetic_axid_v3"} else "end"
+            2
+            if self.schema.get("schema_version") in {"synthetic_axid_v2", "synthetic_axid_v3", "synthetic_axid_axid_v3"}
+            else "end"
         )
         if self.state["feature_fit_end"] != self.split["train_end"]:
             raise ValueError("Feature fitting and training boundary mismatch")
@@ -125,12 +132,12 @@ class FoldData:
         )
 
     def day_matrix(self, daily):
-        """Eight-dimensional model input; inventory is X_3 in the synthetic contract."""
+        """Model input X; inventory is inserted at position 3 for synthetic data."""
         base = self.day_scaler.transform(daily)
         inventory = self.inventory_scaler.transform(daily)
         if self.inventory_position == 2:
-            if base.shape[1] != 7:
-                raise ValueError("Synthetic X contract requires seven non-inventory day coordinates")
+            if base.shape[1] != len(self.day_cols):
+                raise ValueError("Synthetic X contract requires one non-inventory coordinate per day column")
             return np.column_stack([base[:, :2], inventory, base[:, 2:]])
         return np.column_stack([base, inventory])
 

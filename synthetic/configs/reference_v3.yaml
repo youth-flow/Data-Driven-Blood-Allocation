@@ -1,0 +1,12 @@
+schema_version: 3
+generator_version: 3
+generator_name: AXID-v3
+data_seed: 20261110
+scenario: AXID-v3
+n_train: 2500
+n_test: 3000
+max_visible_orders: 8
+max_new_orders: 12
+remainder_width: 0.5
+inventory_center: 315.0
+inventory_half_width: 70.0

@@ -127,5 +127,6 @@ def fit_predict(data, config, recipe=None):
         "train_leaves": train_leaves,
         "residual": residual,
         "features": features,
+        "input_dim": int(x.shape[1]),
     }
     return prediction, {"epochs": int(config["training"]["epochs"])}, artifact

@@ -7,7 +7,7 @@ from .training import _predict
 def predict_artifact(state, data, config):
     seed_everything(config["seed"])
     model = FlatPatientPMF(
-        22,
+        int(state["input_dim"]),
         config["flat_eto"]["patient_hidden_dims"],
         config["flat_eto"]["dropout"],
     )

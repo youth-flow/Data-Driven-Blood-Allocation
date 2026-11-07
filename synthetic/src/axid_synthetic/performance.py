@@ -1,4 +1,4 @@
-"""S4-only fixed-configuration performance experiments P1-P3."""
+"""AXID-v3 fixed-configuration performance experiments P1-P3."""
 
 import numpy as np
 import pandas as pd
@@ -8,7 +8,7 @@ from dat_study.config import load_config
 from dat_study.data import FoldData
 from dat_study.evaluation import evaluate
 from dat_study.training import fit_predict
-from .generator import generate_performance
+from .generator_v3 import generate_performance
 from .jobs import run_job
 
 
@@ -30,7 +30,7 @@ def _data_recipe(protocol, generator, args, repeat):
     settings = protocol["performance_experiments"]
     return {
         **generator,
-        "scenario": "S4",
+        "scenario": "AXID-v3",
         "data_seed": args.data_seed + repeat,
         "max_visible_orders": protocol["profiles"]["performance"]["max_orders"],
         "n_train": 32 if args.smoke else settings["n_train"],
@@ -74,11 +74,11 @@ def run_performance(args, protocol, generator, root, output, groups, code_hash):
     all_rows = []
     for repeat in range(args.repeat_start, args.repeat_start + repeats):
         recipe = _data_recipe(protocol, generator, args, repeat)
-        data_root = output / "datasets" / f"S4_r{repeat}"
+        data_root = output / "datasets" / f"AXIDv3_r{repeat}"
         if data_root.exists():
             existing = yaml.safe_load((data_root / "generation.yaml").read_text(encoding="utf-8"))
             if existing != recipe:
-                raise ValueError("Existing S4 samples have a different recipe")
+                raise ValueError("Existing AXID-v3 samples have a different recipe")
         else:
             generate_performance(recipe, data_root)
         data = FoldData(data_root)
@@ -88,7 +88,7 @@ def run_performance(args, protocol, generator, root, output, groups, code_hash):
                     continue
                 run_seeds = seeds if method in settings["stochastic_methods"] else [0]
                 for seed in run_seeds:
-                    name = f"{group}_S4_r{repeat}_{method}_{variant}_{level or 'full'}_s{seed}"
+                    name = f"{group}_AXIDv3_r{repeat}_{method}_{variant}_{level or 'full'}_s{seed}"
                     signature = {
                         "protocol": protocol,
                         "generator": recipe,
@@ -123,7 +123,7 @@ def run_performance(args, protocol, generator, root, output, groups, code_hash):
                         for row in rows:
                             row.update(
                                 experiment=group,
-                                scenario="S4",
+                                scenario="AXID-v3",
                                 method=method,
                                 structure_variant=variant,
                                 information_level=level or "",
