@@ -8,6 +8,7 @@ import torch
 import yaml
 
 from axid_synthetic.generator_v3 import generate_performance
+from axid_synthetic.oracle_v3 import conditional_pmf, quantile
 from dat_study.config import load_config, model_config
 from dat_study.data import DailySets, FoldData, collate
 from dat_study.tabular import PsiFeatures
@@ -113,3 +114,16 @@ def test_all_methods_fit(axid, method):
     assert np.isfinite(prediction).all()
     assert ((prediction >= 0) & (prediction <= 60.5)).all()
     assert artifact
+
+
+def test_full_oracle_pmf_and_permutation(axid):
+    daily = axid.daily_split("eval")
+    orders = axid.order_split("eval")
+    groups = dict(tuple(orders.groupby("decision_day", sort=False)))
+    row = daily.iloc[0]
+    frame = groups[row.decision_day]
+    pmf = conditional_pmf(frame, row.scheduled_load, row.emergency_pressure)
+    assert pmf.sum() == pytest.approx(1.0, abs=1e-10)
+    assert 0.0 <= quantile(pmf) <= 60.5
+    permuted = conditional_pmf(frame.sample(frac=1, random_state=1), row.scheduled_load, row.emergency_pressure)
+    assert np.max(np.abs(pmf - permuted)) < 1e-12
