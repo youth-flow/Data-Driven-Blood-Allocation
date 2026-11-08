@@ -24,7 +24,7 @@ def main(argv=None):
     parser.add_argument("--family", choices=["theory", "performance", "all"], default="all")
     parser.add_argument("--group", choices=[*THEORY, *PERFORMANCE, "all"], default="all")
     parser.add_argument("--name", required=True)
-    parser.add_argument("--protocol", type=Path, default=root / "synthetic/configs/confirmed_protocol_v3.yaml")
+    parser.add_argument("--protocol", type=Path, default=root / "synthetic/configs/confirmed_protocol_v4.yaml")
     parser.add_argument("--output-root", type=Path, default=root / "outputs")
     parser.add_argument("--methods", nargs="+")
     parser.add_argument("--repetitions", type=int)
@@ -61,15 +61,17 @@ def main(argv=None):
     if args.methods and any(x not in METHODS or x == "Historical-Receipt" for x in args.methods):
         raise ValueError("Unknown method or unavailable historical receipts")
     protocol = yaml.safe_load(args.protocol.read_text(encoding="utf-8"))
-    reference = "reference_v3.yaml" if "v3" in args.protocol.name else "reference.yaml"
+    reference = "reference_v4.yaml" if "v4" in args.protocol.name else "reference_v3.yaml" if "v3" in args.protocol.name else "reference.yaml"
     generator = yaml.safe_load((root / "synthetic" / "configs" / reference).read_text(encoding="utf-8"))
-    if int(generator.get("generator_version", 0)) == 3:
+    gen_version = int(generator.get("generator_version", 0))
+    if gen_version == 4:
+        from .contract_v4 import validate_contract
+    elif gen_version == 3:
         from .contract_v3 import validate_contract
-
-        if args.family != "performance":
-            raise ValueError("The AXID-v3 run in this build is performance-only")
     else:
         from .contract import validate_contract
+    if gen_version in {3, 4} and args.family != "performance":
+        raise ValueError("AXID-v3/v4 runs in this build are performance-only")
 
     validate_contract(protocol, generator)
     allowed = (
@@ -113,7 +115,10 @@ def main(argv=None):
             args, protocol, generator, root, output, [x for x in groups if x in THEORY], plan["code_fingerprint"]
         )
     if any(x in PERFORMANCE for x in groups):
-        from .performance import run_performance
+        if int(generator.get("generator_version", 0)) == 4:
+            from .performance_v4 import run_performance
+        else:
+            from .performance import run_performance
 
         performance = run_performance(
             args, protocol, generator, root, output, [x for x in groups if x in PERFORMANCE], plan["code_fingerprint"]

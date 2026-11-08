@@ -1,0 +1,12 @@
+schema_version: 4
+generator_version: 4
+generator_name: AXID-v4
+data_seed: 20261111
+scenario: AXID-v4
+n_train: 2500
+n_test: 3000
+max_visible_orders: 8
+max_new_orders: 12
+remainder_width: 0.5
+inventory_center: 315.0
+inventory_half_width: 70.0

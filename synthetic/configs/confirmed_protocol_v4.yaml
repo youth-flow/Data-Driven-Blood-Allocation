@@ -1,0 +1,93 @@
+protocol_version: 6
+status: frozen
+scenario: AXID-v4
+generator_family: axid_v4_local_case_mix
+training_mode: direct_daily_scalar_quantile
+data_access: fully_artificial_only
+primary_tau: 0.9
+sampling:
+  iid_days: true
+  dates_are_identifiers_only: true
+  fixed_known_scaling: true
+  order_dimension: 4
+  day_dimension_excluding_count: 8
+  explicit_normalized_count: true
+  inventory_is_day_coordinate: true
+  n_new_max: 12
+  max_visible_orders: 8
+  demand_grid_step: 0.5
+  continuous_remainder_width: 0.5
+  inventory_center: 315.0
+  inventory_context_coefficient: 20.0
+  inventory_noise_half_width: 70.0
+  peer_kernel_bandwidth: 0.25
+dat:
+  patient_blocks: 1
+  cross_blocks: 1
+  day_encoder: affine
+  activation: relu
+  layer_norm_eps: 1.0e-05
+  dropout: 0.0
+  head: clipped_scalar_affine
+  loss: pinball
+  weight_decay: 0.0
+  optimizer: AdamW
+  gradient_clip: 1.0
+  positional_encoding: false
+  norm_set: closed_global_euclidean_ball
+  supplementary_layer_caps: same_as_global_radius
+  single_tau_runs: true
+  share_weights_between_taus: false
+  rearrange_quantiles_for_primary_results: false
+  pretraining: false
+  lora: false
+  order_label_supervision: false
+  patient_ffn: false
+  day_ffn_pre_norm: false
+  output_norm: false
+  self_attention_heads: 4
+  cross_attention_heads: 4
+profiles:
+  performance:
+    max_orders: 8
+    demand_upper: 60.5
+    d_model: 80
+    patient_hidden: 96
+    day_ff: 128
+    radius: 100.0
+performance_experiments:
+  scenario: AXID-v4
+  tau: 0.9
+  targets: [260, 280, 300, 320, 340]
+  n_train: 2500
+  n_test: 3000
+  independent_data_repetitions: 10
+  model_seeds: [0, 1, 2]
+  hyperparameter_search: false
+  validation_selection: false
+  primary_metric: PrescriptiveP
+  secondary_metric: MeanCost
+  prescriptive_metric: PrescriptiveP
+  oracle_metric_status: required_main_metric
+  stochastic_methods: [DAT, DeepQR, Flat-ETO, Set-ETO, wSAA]
+  deterministic_methods: [SAA, LQR, GBQR]
+  comparison:
+    methods: [DAT, SAA, wSAA, Flat-ETO, Set-ETO, LQR, GBQR, DeepQR]
+    set_eto_distribution: HurdleGamma
+  ablation:
+    variants: [full, no_self_attention, no_self_attention_param_matched, mean_pool, sum_pool, no_day_query, mean_pool_param_matched, sum_pool_param_matched]
+    same_input_information: true
+    retrain_every_variant: true
+  information:
+    levels: [L0, L1, L2, L4]
+    fixed_architecture_and_parameter_count: true
+    remove_count_leakage_for_L0: true
+    retrain_every_level: true
+implementation_gates:
+  - axid_v4_local_case_mix
+  - four_patient_features_nine_day_features
+  - psi_23_flat_27
+  - eight_methods_eight_structures_four_information
+  - ten_repetitions_three_seeds_2500_3000
+  - no_search_no_validation
+  - mean_cost_sl_g_and_prescriptive_main
