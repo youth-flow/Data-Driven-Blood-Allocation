@@ -24,6 +24,7 @@ MODEL_DIRS = (
     "SAA/SAA",
     "SAA/wSAA",
     "SAA/Rolling-SAA",
+    "ETO/Flat",
     "ETO/Flat-ETO",
     "ETO/Set-ETO",
     "QR/LQR",

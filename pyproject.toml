@@ -18,13 +18,14 @@ plots = ["matplotlib>=3.7,<4"]
 dat-study = "dat_study.cli:main"
 
 [tool.setuptools]
-packages = ["dat_study", "datransformer", "saa_experiment", "wsaa_experiment", "set_eto", "flat_eto", "rolling_saa", "lqr_experiment", "gbqr_experiment", "deep_qr", "axid_synthetic", "historical_receipt"]
+packages = ["dat_study", "datransformer", "saa_experiment", "wsaa_experiment", "flat_experiment", "set_eto", "flat_eto", "rolling_saa", "lqr_experiment", "gbqr_experiment", "deep_qr", "axid_synthetic", "historical_receipt"]
 
 [tool.setuptools.package-dir]
 dat_study = "src/dat_study"
 datransformer = "DAT/src/datransformer"
 saa_experiment = "SAA/SAA/src/saa_experiment"
 wsaa_experiment = "SAA/wSAA/src/wsaa_experiment"
+flat_experiment = "ETO/Flat/src/flat_experiment"
 set_eto = "ETO/Set-ETO/src/set_eto"
 flat_eto = "ETO/Flat-ETO/src/flat_eto"
 rolling_saa = "SAA/Rolling-SAA/src/rolling_saa"
@@ -36,7 +37,7 @@ historical_receipt = "Historical-Receipt/src/historical_receipt"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src", "data", "DAT/src", "SAA/SAA/src", "SAA/wSAA/src", "ETO/Set-ETO/src", "ETO/Flat-ETO/src", "SAA/Rolling-SAA/src", "QR/LQR/src", "QR/GBQR/src", "QR/DeepQR/src", "synthetic/src", "Historical-Receipt/src"]
+pythonpath = ["src", "data", "DAT/src", "SAA/SAA/src", "SAA/wSAA/src", "ETO/Flat/src", "ETO/Set-ETO/src", "ETO/Flat-ETO/src", "SAA/Rolling-SAA/src", "QR/LQR/src", "QR/GBQR/src", "QR/DeepQR/src", "synthetic/src", "Historical-Receipt/src"]
 addopts = "-ra"
 
 [tool.ruff]

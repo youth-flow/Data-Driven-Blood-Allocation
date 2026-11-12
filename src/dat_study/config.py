@@ -6,6 +6,7 @@ import yaml
 METHODS = (
     "SAA",
     "wSAA",
+    "Flat",
     "Set-ETO",
     "Flat-ETO",
     "DAT",
