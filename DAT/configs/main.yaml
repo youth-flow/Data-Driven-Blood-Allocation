@@ -22,7 +22,7 @@ model:
   self_attention: {num_layers: 1, num_heads: 4, dropout: 0.0}
   day_encoder: {hidden_dims: [], activation: relu, dropout: 0.0}
   cross_attention: {num_layers: 1, num_heads: 4, ff_dim: 128, dropout: 0.0}
-  head: {hidden_dims: [], output_lower_bound: 0.0, output_upper_bound: 60.5}
+  head: {hidden_dims: [], output_lower_bound: 0.0, output_upper_bound: 61.0}
 loss:
   type: pinball
   taus: [0.9]

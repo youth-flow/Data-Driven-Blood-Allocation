@@ -38,9 +38,9 @@ class NewDemandCDF:
         return 0.0 if index == 0 else float(self.cumulative[index - 1])
 
 
-def flat_quantile(patient_probabilities, new_demand: NewDemandCDF, tau, upper):
+def flat_quantile(patient_probabilities, new_demand: NewDemandCDF, tau, upper, step=0.5):
     pmf = convolve_patient_pmfs(patient_probabilities)
-    grid = 0.5 * np.arange(len(pmf))
+    grid = float(step) * np.arange(len(pmf))
 
     def cdf(point):
         return float(np.sum(pmf * np.array([new_demand(point - atom) for atom in grid])))

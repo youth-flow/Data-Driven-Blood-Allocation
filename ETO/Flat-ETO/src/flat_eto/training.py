@@ -19,7 +19,8 @@ def _patient_data(data, features, daily):
         & data.orders.real_demand.notna()
     ].copy()
     x = features.patient_input(data, orders)
-    y = np.rint(2.0 * orders.real_demand.to_numpy(float)).astype(np.int64)
+    scale = 1.0 if int(data.schema.get("generator_version", 4)) == 6 else 2.0
+    y = np.rint(scale * orders.real_demand.to_numpy(float)).astype(np.int64)
     if ((y < 0) | (y > 6)).any():
         raise ValueError("Flat-ETO patient labels must lie on the seven-class grid")
     day_lookup = {day: index for index, day in enumerate(daily.decision_day.to_numpy())}
@@ -109,7 +110,10 @@ def _predict(model, forest, train_leaves, residual, features, data, config):
             torch.softmax(model(torch.from_numpy(patient_x).float().to(device_for(config))), dim=-1).cpu().numpy()
         )
         cdf = NewDemandCDF(residual, weights[row_index])
-        values.append([flat_quantile(probabilities, cdf, tau, upper) for tau in config["taus"]])
+        step = float(data.schema.get("demand_grid_step", 0.5))
+        values.append(
+            [flat_quantile(probabilities, cdf, tau, upper, step=step) for tau in config["taus"]]
+        )
     return np.asarray(values)
 
 
