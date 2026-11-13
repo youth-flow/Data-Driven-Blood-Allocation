@@ -35,6 +35,7 @@ class FoldData:
             "synthetic_axid_axid_v4",
             "synthetic_axid_dc_v6",
             "synthetic_axid_dc_v7",
+            "synthetic_axid_dc_v7_final",
         }:
             raise ValueError("Unsupported data contract")
         manifest = read_json(self.directory / "manifest.json")
@@ -50,7 +51,7 @@ class FoldData:
         # Real-derived folds retain the historical layout with inventory appended last.
         self.inventory_position = (
             2
-            if self.schema.get("schema_version") in {"synthetic_axid_v2", "synthetic_axid_v3", "synthetic_axid_axid_v3", "synthetic_axid_axid_v4", "synthetic_axid_dc_v6", "synthetic_axid_dc_v7"}
+            if self.schema.get("schema_version") in {"synthetic_axid_v2", "synthetic_axid_v3", "synthetic_axid_axid_v3", "synthetic_axid_axid_v4", "synthetic_axid_dc_v6", "synthetic_axid_dc_v7", "synthetic_axid_dc_v7_final"}
             else "end"
         )
         if self.state["feature_fit_end"] != self.split["train_end"]:

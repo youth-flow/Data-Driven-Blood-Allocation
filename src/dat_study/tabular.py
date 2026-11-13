@@ -34,12 +34,12 @@ class PsiFeatures:
 
     def fit(self, data):
         self.version = int(data.schema.get("generator_version", 4))
-        self.columns = self.V6_COLUMNS if self.version in {6, 7} else self.V4_COLUMNS
+        self.columns = self.V6_COLUMNS if self.version in {6, 7, 8} else self.V4_COLUMNS
         return self
 
     def _daily_summary(self, data, daily):
         orders = data.orders[data.orders.decision_day.isin(daily.decision_day)].copy()
-        if self.version in {6, 7}:
+        if self.version in {6, 7, 8}:
             orders["ur"] = orders["u"] * orders["r"]
             orders["us"] = orders["u"] * orders["s"]
             orders["rs"] = orders["r"] * orders["s"]
@@ -94,7 +94,7 @@ class PsiFeatures:
         psi = self.transform(data, unique_days)
         lookup = {day: value for day, value in zip(unique_days.decision_day.to_numpy(), psi)}
         psi_rows = np.row_stack([lookup[day] for day in orders.decision_day.to_numpy()])
-        if self.version in {6, 7}:
+        if self.version in {6, 7, 8}:
             return np.column_stack(
                 [
                     orders["u"].to_numpy(float),

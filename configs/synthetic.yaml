@@ -8,7 +8,7 @@ targets:
 - 300
 - 320
 - 340
-scenario: AXID-DC-v7
+scenario: AXID-DC-v7-Final
 data_root: ../synthetic/generated/reference
 output_root: ../outputs
 model_configs:
