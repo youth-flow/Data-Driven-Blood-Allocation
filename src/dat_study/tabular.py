@@ -14,6 +14,7 @@ def ordered_quantiles(values):
 class PsiFeatures:
     """Fixed pre-decision summary: 23 dims for v3/v4, 16 dims for AXID-DC v6."""
 
+    V8_COLUMNS = ["ur", "u_hb", "r_hb", "u_min", "u_max", "r_min", "r_max", "hb_min", "hb_max"]
     V6_COLUMNS = ["ur", "us", "rs", "u_min", "u_max", "r_min", "r_max", "s_min", "s_max"]
     V4_COLUMNS = [
         "u2",
@@ -34,12 +35,28 @@ class PsiFeatures:
 
     def fit(self, data):
         self.version = int(data.schema.get("generator_version", 4))
-        self.columns = self.V6_COLUMNS if self.version in {6, 7, 8} else self.V4_COLUMNS
+        self.columns = self.V8_COLUMNS if self.version == 9 else self.V6_COLUMNS if self.version in {6, 7, 8} else self.V4_COLUMNS
         return self
 
     def _daily_summary(self, data, daily):
         orders = data.orders[data.orders.decision_day.isin(daily.decision_day)].copy()
-        if self.version in {6, 7, 8}:
+        if self.version == 9:
+            orders["shortage"] = 1.0 - orders["hb"]
+            orders["ur"] = orders["u"] * orders["r"]
+            orders["u_hb"] = orders["u"] * orders["shortage"]
+            orders["r_hb"] = orders["r"] * orders["shortage"]
+            summary = orders.groupby("decision_day").agg(
+                ur=("ur", "mean"),
+                u_hb=("u_hb", "mean"),
+                r_hb=("r_hb", "mean"),
+                u_min=("u", "min"),
+                u_max=("u", "max"),
+                r_min=("r", "min"),
+                r_max=("r", "max"),
+                hb_min=("shortage", "min"),
+                hb_max=("shortage", "max"),
+            )
+        elif self.version in {6, 7, 8}:
             orders["ur"] = orders["u"] * orders["r"]
             orders["us"] = orders["u"] * orders["s"]
             orders["rs"] = orders["r"] * orders["s"]
@@ -94,6 +111,15 @@ class PsiFeatures:
         psi = self.transform(data, unique_days)
         lookup = {day: value for day, value in zip(unique_days.decision_day.to_numpy(), psi)}
         psi_rows = np.row_stack([lookup[day] for day in orders.decision_day.to_numpy()])
+        if self.version == 9:
+            return np.column_stack(
+                [
+                    orders["u"].to_numpy(float),
+                    orders["r"].to_numpy(float),
+                    orders["hb"].to_numpy(float),
+                    psi_rows,
+                ]
+            )
         if self.version in {6, 7, 8}:
             return np.column_stack(
                 [

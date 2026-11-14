@@ -24,7 +24,7 @@ def main(argv=None):
     parser.add_argument("--family", choices=["theory", "performance", "all"], default="all")
     parser.add_argument("--group", choices=[*THEORY, *PERFORMANCE, "all"], default="all")
     parser.add_argument("--name", required=True)
-    parser.add_argument("--protocol", type=Path, default=root / "synthetic/configs/confirmed_protocol_v7_final.yaml")
+    parser.add_argument("--protocol", type=Path, default=root / "synthetic/configs/confirmed_protocol_v8.yaml")
     parser.add_argument("--output-root", type=Path, default=root / "outputs")
     parser.add_argument("--methods", nargs="+")
     parser.add_argument("--repetitions", type=int)
@@ -61,10 +61,12 @@ def main(argv=None):
     if args.methods and any(x not in METHODS or x == "Historical-Receipt" for x in args.methods):
         raise ValueError("Unknown method or unavailable historical receipts")
     protocol = yaml.safe_load(args.protocol.read_text(encoding="utf-8"))
-    reference = "reference_v7_final.yaml" if "final" in args.protocol.name else "reference_v7.yaml" if "v7" in args.protocol.name else "reference_v6.yaml" if "v6" in args.protocol.name else "reference_v4.yaml" if "v4" in args.protocol.name else "reference_v3.yaml" if "v3" in args.protocol.name else "reference.yaml"
+    reference = "reference_v8.yaml" if "v8" in args.protocol.name else "reference_v7_final.yaml" if "final" in args.protocol.name else "reference_v7.yaml" if "v7" in args.protocol.name else "reference_v6.yaml" if "v6" in args.protocol.name else "reference_v4.yaml" if "v4" in args.protocol.name else "reference_v3.yaml" if "v3" in args.protocol.name else "reference.yaml"
     generator = yaml.safe_load((root / "synthetic" / "configs" / reference).read_text(encoding="utf-8"))
     gen_version = int(generator.get("generator_version", 0))
-    if gen_version == 8:
+    if gen_version == 9:
+        from .contract_v8 import validate_contract
+    elif gen_version == 8:
         from .contract_v7_final import validate_contract
     elif gen_version == 7:
         from .contract_v7 import validate_contract
@@ -76,7 +78,7 @@ def main(argv=None):
         from .contract_v3 import validate_contract
     else:
         from .contract import validate_contract
-    if gen_version in {3, 4, 6, 7, 8} and args.family != "performance":
+    if gen_version in {3, 4, 6, 7, 8, 9} and args.family != "performance":
         raise ValueError("AXID-v3/v4 runs in this build are performance-only")
 
     validate_contract(protocol, generator)
@@ -121,7 +123,9 @@ def main(argv=None):
             args, protocol, generator, root, output, [x for x in groups if x in THEORY], plan["code_fingerprint"]
         )
     if any(x in PERFORMANCE for x in groups):
-        if int(generator.get("generator_version", 0)) == 8:
+        if int(generator.get("generator_version", 0)) == 9:
+            from .performance_v8 import run_performance
+        elif int(generator.get("generator_version", 0)) == 8:
             from .performance_v7_final import run_performance
         elif int(generator.get("generator_version", 0)) == 7:
             from .performance_v7 import run_performance

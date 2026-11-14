@@ -280,11 +280,11 @@ def _performance_figures(output, data, figures, plt):
                 ax.set(title=f"G={target:g}", xlabel=x_name, ylabel=ylabel)
             fig.tight_layout()
             if experiment == "ablation":
-                stem = f"{prefix}_AXIDv7F_{suffix}_ablation"
+                stem = f"{prefix}_AXIDv8_{suffix}_ablation"
             elif experiment == "information":
-                stem = f"{prefix}_AXIDv7F_{suffix}_information"
+                stem = f"{prefix}_AXIDv8_{suffix}_information"
             else:
-                stem = f"{prefix}_AXIDv7F_{suffix}_by_method"
+                stem = f"{prefix}_AXIDv8_{suffix}_by_method"
             fig.savefig(figures / f"{stem}.png", dpi=160)
             plt.close(fig)
 

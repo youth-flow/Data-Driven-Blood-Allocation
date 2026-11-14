@@ -15,13 +15,13 @@ training:
   device: auto
   threads: 4
 model:
-  d_model: 80
+  d_model: 64
   layer_norm_eps: 0.00001
   context: {include_inventory: true}
-  patient_encoder: {hidden_dims: [96], activation: relu, dropout: 0.0}
+  patient_encoder: {hidden_dims: [64], activation: relu, dropout: 0.0}
   self_attention: {num_layers: 1, num_heads: 4, dropout: 0.0}
   day_encoder: {hidden_dims: [], activation: relu, dropout: 0.0}
-  cross_attention: {num_layers: 1, num_heads: 4, ff_dim: 128, dropout: 0.0}
+  cross_attention: {num_layers: 1, num_heads: 4, ff_dim: 96, dropout: 0.0}
   head: {hidden_dims: [], output_lower_bound: 0.0, output_upper_bound: 61.0}
 loss:
   type: pinball

@@ -1,0 +1,12 @@
+schema_version: 9
+generator_version: 9
+generator_name: AXID-DC v8
+data_seed: 20261116
+scenario: AXID-DC-v8
+n_train: 2500
+n_test: 3000
+max_visible_orders: 8
+max_new_orders: 2
+remainder_width: 1.0
+inventory_center: 270.0
+inventory_half_width: 50.0

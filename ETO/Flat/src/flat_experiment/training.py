@@ -40,8 +40,12 @@ def _fit_module(module, x, y, config, seed):
     return module
 
 
+def _patient_columns(orders):
+    return ["u", "r", "hb"] if "hb" in orders.columns else ["u", "r", "s"]
+
+
 def _patient_frame(orders):
-    return orders[["u", "r", "s"]].to_numpy(float), orders["real_demand"].to_numpy(float)
+    return orders[_patient_columns(orders)].to_numpy(float), orders["real_demand"].to_numpy(float)
 
 
 def _residual_target(data, daily):
@@ -64,7 +68,7 @@ def _predict(model, data, config):
         if frame is None or len(frame) == 0:
             known = 0.0
         else:
-            patient = frame[["u", "r", "s"]].to_numpy(np.float32)
+            patient = frame[_patient_columns(frame)].to_numpy(np.float32)
             prediction = model.patient_prediction(torch.from_numpy(patient).to(device_for(config))).cpu().numpy()
             known = float(np.clip(prediction, 0.0, 6.0).sum())
         values.append(np.clip(known + residual[index], 0.0, float(data.schema["demand_support_upper"])))
