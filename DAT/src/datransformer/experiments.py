@@ -8,6 +8,8 @@ ABLATIONS = (
     "mean_pool",
     "sum_pool",
     "no_day_query",
+    "lite_mean_pool",
+    "lite_sum_pool",
 )
 INFORMATION = ("full", "L0", "L1", "L2", "L3", "L4")
 

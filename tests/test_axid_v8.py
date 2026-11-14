@@ -53,3 +53,21 @@ def test_params(v8):
     c["ablation"] = "full"
     full = structural_parameter_counts(new_dat(v8, c))
     assert full["structurally_active_parameters"] == 51105
+
+
+def test_lite_parameter_counts(v8):
+    expected = {
+        "full": 43441,
+        "no_self_attention": 26673,
+        "no_day_query": 43505,
+        "lite_mean_pool": 30833,
+        "lite_sum_pool": 30833,
+    }
+    for variant, count in expected.items():
+        c = model_config(load_config(ROOT / "configs/synthetic.yaml"), "DAT")
+        c["ablation"] = variant
+        c["model"]["d_model"] = 64
+        c["model"]["patient_encoder"]["hidden_dims"] = [32]
+        c["model"]["day_encoder"]["hidden_dims"] = [16]
+        c["model"]["cross_attention"]["ff_dim"] = 48
+        assert structural_parameter_counts(new_dat(v8, c))["structurally_active_parameters"] == count

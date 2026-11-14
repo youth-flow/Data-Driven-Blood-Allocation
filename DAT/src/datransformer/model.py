@@ -73,9 +73,16 @@ class DecisionAwareTransformer(nn.Module):
         self.sa_norm = nn.LayerNorm(width, eps=eps)
         self.self_attention = nn.MultiheadAttention(width, int(sa["num_heads"]), batch_first=True)
         self.day_encoder = ConfigurableMlp(day_num_dim + 1, model["day_encoder"]["hidden_dims"], width)
-        self.query_norm = nn.LayerNorm(width, eps=eps)
-        self.memory_norm = nn.LayerNorm(width, eps=eps)
-        self.cross_attention = nn.MultiheadAttention(width, int(ca["num_heads"]), batch_first=True)
+        self.ablation = config.get("ablation", "full")
+        if self.ablation in {"full", "no_self_attention", "mean_pool", "sum_pool", "no_day_query"}:
+            self.query_norm = nn.LayerNorm(width, eps=eps)
+            self.memory_norm = nn.LayerNorm(width, eps=eps)
+            self.cross_attention = nn.MultiheadAttention(width, int(ca["num_heads"]), batch_first=True)
+        elif self.ablation in {"lite_mean_pool", "lite_sum_pool"}:
+            self.memory_norm = nn.LayerNorm(width, eps=eps)
+            self.pool_output = nn.Linear(width, width)
+        else:
+            raise ValueError("Unknown structural intervention")
         self.day_ffn = ConfigurableMlp(width, [int(ca["ff_dim"])], width)
         self.head = nn.Linear(width, 1)
         self.lower = float(model["head"].get("output_lower_bound", 0))
@@ -86,9 +93,6 @@ class DecisionAwareTransformer(nn.Module):
         nn.init.constant_(self.head.bias, float(model["head"].get("initial_quantile", self.upper / 4)))
         self.register_buffer("inventory_mean", torch.tensor(float(inventory_mean)))
         self.register_buffer("inventory_std", torch.tensor(float(inventory_std)))
-        self.ablation = config.get("ablation", "full")
-        if self.ablation not in {"full", "no_self_attention", "mean_pool", "sum_pool", "no_day_query"}:
-            raise ValueError("Unknown structural intervention")
         if self.ablation == "no_day_query":
             self.constant_query = nn.Parameter(torch.zeros(1, 1, width))
         controls = config.get("input_controls", {})
@@ -137,7 +141,13 @@ class DecisionAwareTransformer(nn.Module):
         day = self._day_input(batch)
         u = self.day_encoder(day).unsqueeze(1)
         weights = None
-        if self.ablation in {"mean_pool", "sum_pool"}:
+        if self.ablation in {"lite_mean_pool", "lite_sum_pool"}:
+            memory = self.memory_norm(tokens)
+            pooled = (memory * mask[..., None]).sum(1, keepdim=True)
+            if self.ablation == "lite_mean_pool":
+                pooled = pooled / mask.sum(1).clamp_min(1)[:, None, None]
+            attended = self.pool_output(pooled)
+        elif self.ablation in {"mean_pool", "sum_pool"}:
             memory = self.memory_norm(tokens)
             w = self.cross_attention.in_proj_weight.chunk(3)[2]
             b = self.cross_attention.in_proj_bias.chunk(3)[2]
@@ -174,6 +184,8 @@ def build_model(config, metadata):
 
 def structural_parameter_counts(model):
     allocated = sum(p.numel() for p in model.parameters())
+    if model.ablation in {"lite_mean_pool", "lite_sum_pool"}:
+        return {"allocated_parameters": allocated, "structurally_active_parameters": allocated}
     inactive = 0
     if model.ablation == "no_self_attention":
         inactive += sum(p.numel() for module in (model.sa_norm, model.self_attention) for p in module.parameters())
