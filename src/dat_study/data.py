@@ -75,10 +75,14 @@ class FoldData:
         }
         if inputs & forbidden or "It" in self.day_cols:
             raise ValueError("Diagnostic or outcome fields cannot be model inputs")
-        self.daily = pd.read_csv(
-            self.directory / "daily_features.csv",
-            parse_dates=["decision_day", "target_day", "snapshot_day", "information_cutoff"],
-        )
+        integer_days = bool(self.schema.get("integer_decision_day", False))
+        if integer_days:
+            self.daily = pd.read_csv(self.directory / "daily_features.csv")
+        else:
+            self.daily = pd.read_csv(
+                self.directory / "daily_features.csv",
+                parse_dates=["decision_day", "target_day", "snapshot_day", "information_cutoff"],
+            )
         columns = list(
             dict.fromkeys(
                 [
@@ -91,10 +95,12 @@ class FoldData:
                 ]
             )
         )
-        self.orders = pd.read_csv(self.directory / "data.csv", usecols=columns, parse_dates=["decision_day"])
+        self.orders = pd.read_csv(self.directory / "data.csv", usecols=columns)
+        if not integer_days:
+            self.orders["decision_day"] = pd.to_datetime(self.orders["decision_day"])
         if self.daily.decision_day.duplicated().any() or self.orders.duplicated(["decision_day", "order_key"]).any():
             raise ValueError("Duplicate daily or order snapshot keys")
-        if not (
+        if not integer_days and not (
             self.daily.decision_day.eq(self.daily.target_day).all()
             and self.daily.snapshot_day.eq(self.daily.decision_day - pd.Timedelta(days=1)).all()
             and self.daily.information_cutoff.eq(self.daily.decision_day).all()
