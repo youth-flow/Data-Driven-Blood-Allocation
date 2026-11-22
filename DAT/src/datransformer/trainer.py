@@ -1,7 +1,7 @@
 """Independent scalar DAT fits at each tau; no shared multi-quantile model."""
 
 from copy import deepcopy
-from math import comb
+from math import comb, cos, pi
 import numpy as np
 import torch
 from dat_study.runtime import device_for, loader, to_device, prepare_fit, cpu_state
@@ -26,7 +26,8 @@ def new_dat(data, config):
         raise ValueError("DAT trains with original pinball loss")
     if "demand_support_upper" in data.schema:
         config["model"]["head"]["output_upper_bound"] = float(data.schema["demand_support_upper"])
-    if "max_orders" in data.schema:
+    enforce_width = data.schema.get("enforce_constructive_width", True)
+    if "max_orders" in data.schema and enforce_width:
         m, da = data.schema["max_orders"], len(data.order_num_cols)
         dm = min(comb(da + m, m) - 1, 2 * m * da + 1)
         if config["model"]["d_model"] < max(dm + 2, dm + len(data.day_cols) + 1):
@@ -53,7 +54,7 @@ def predict(model, kind, dataset, data, config):
 
 def _packed_dataset(dataset, device, config):
     """Packed tensors avoid per-batch collation for the small tabular sets used here."""
-    samples = dataset.samples
+    samples = getattr(dataset, "samples", None)
     if not samples:
         return None
     maximum = max(len(sample["order_num"]) for sample in samples)
@@ -90,12 +91,42 @@ def _predict_packed(model, packed):
 
 
 def fit_daily(model, kind, training, data, config, epochs, validation=None):
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config["training"]["learning_rate"], weight_decay=0.0)
+    training_config = config["training"]
+    decay = float(training_config.get("weight_decay", 0.0))
+    decay_parameters, no_decay_parameters = [], []
+    for parameter in model.parameters():
+        (decay_parameters if parameter.ndim > 1 else no_decay_parameters).append(parameter)
+    optimizer = torch.optim.AdamW(
+        [
+            {"params": decay_parameters, "weight_decay": decay},
+            {"params": no_decay_parameters, "weight_decay": 0.0},
+        ],
+        lr=float(training_config["learning_rate"]),
+        betas=tuple(training_config.get("betas", (0.9, 0.999))),
+        eps=float(training_config.get("eps", 1e-8)),
+    )
     best, stale, best_epoch, state, history = np.inf, 0, 0, None, []
     tau = config["taus"][0]
     device = device_for(config)
     packed = _packed_dataset(training, device, config)
     validation_packed = _packed_dataset(validation, device, config) if validation is not None else None
+    max_steps = training_config.get("max_steps")
+    max_steps = int(max_steps) if max_steps is not None else None
+    warmup_steps = int(training_config.get("warmup_steps", 0))
+    peak_lr = float(training_config["learning_rate"])
+    start_lr = float(training_config.get("warmup_start_lr", peak_lr))
+    minimum_lr = float(training_config.get("minimum_lr", peak_lr))
+    global_step = 0
+
+    def learning_rate(step):
+        if max_steps is None:
+            return peak_lr
+        if warmup_steps and step < warmup_steps:
+            return start_lr + (peak_lr - start_lr) * step / warmup_steps
+        denominator = max(1, max_steps - warmup_steps - 1)
+        progress = min(1.0, max(0.0, (step - warmup_steps) / denominator))
+        return minimum_lr + 0.5 * (peak_lr - minimum_lr) * (1.0 + cos(pi * progress))
+
     for epoch in range(int(epochs)):
         model.train()
         total, count = 0.0, 0
@@ -112,6 +143,11 @@ def fit_daily(model, kind, training, data, config, epochs, validation=None):
         else:
             batches = (to_device(b, device) for b in loader(training, config, True, epoch))
         for batch in batches:
+            if max_steps is not None and global_step >= max_steps:
+                break
+            lr = learning_rate(global_step)
+            for group in optimizer.param_groups:
+                group["lr"] = lr
             optimizer.zero_grad(set_to_none=True)
             loss = pinball_loss(model(batch)["quantile"], batch["demand"], tau)
             if not torch.isfinite(loss):
@@ -120,9 +156,15 @@ def fit_daily(model, kind, training, data, config, epochs, validation=None):
             torch.nn.utils.clip_grad_norm_(model.parameters(), config["training"]["gradient_clip"])
             optimizer.step()
             project_parameters(model, config)
+            global_step += 1
             total += loss.item() * len(batch["demand"])
             count += len(batch["demand"])
-        row = {"epoch": epoch + 1, "training_pinball": total / count}
+        row = {
+            "epoch": epoch + 1,
+            "training_pinball": total / count,
+            "optimizer_steps": global_step,
+            "learning_rate": learning_rate(max(0, global_step - 1)),
+        }
         if validation is not None:
             q = (
                 _predict_packed(model, validation_packed)[:, 0]
@@ -141,11 +183,20 @@ def fit_daily(model, kind, training, data, config, epochs, validation=None):
         history.append(row)
         if validation is not None and stale >= config["training"]["patience"]:
             break
+        if max_steps is not None and global_step >= max_steps:
+            break
+    if max_steps is not None and global_step != max_steps:
+        raise RuntimeError(f"Training produced {global_step} optimizer steps; expected {max_steps}")
     if state is not None:
         model.load_state_dict(state)
     from .model import structural_parameter_counts
 
-    return {"epochs": best_epoch, "history": history, **structural_parameter_counts(model)}
+    return {
+        "epochs": best_epoch,
+        "optimizer_steps": global_step,
+        "history": history,
+        **structural_parameter_counts(model),
+    }
 
 
 def fit_predict(data, config, recipe=None):
@@ -159,6 +210,9 @@ def fit_predict(data, config, recipe=None):
                 raise ValueError("Scalar DAT refit requires frozen epochs for every tau")
             frozen = {"epochs": recipe["selection"]["tau_epochs"][str(tau)]}
         training, evaluation, validation, epochs = prepare_fit(data, selected, frozen)
+        selected["model"]["head"]["initial_quantile"] = float(
+            np.quantile(training.daily.D.to_numpy(float), tau, method="higher")
+        )
         model = new_dat(data, selected)
         result = fit_daily(model, "DAT", training, data, selected, epochs, validation)
         predictions.append(predict(model, "DAT", evaluation, data, selected))

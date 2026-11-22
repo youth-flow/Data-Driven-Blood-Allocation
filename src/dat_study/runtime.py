@@ -28,19 +28,41 @@ def device_for(config):
 
 
 def loader(dataset, config, shuffle=False, epoch=0):
-    generator = torch.Generator().manual_seed(config["seed"] + epoch)
-    return DataLoader(
-        dataset,
-        batch_size=config["training"]["batch_size"],
-        shuffle=shuffle,
-        collate_fn=collate,
-        num_workers=0,
-        generator=generator,
-    )
+    shuffle_seed = int(config["training"].get("shuffle_seed", config["seed"]))
+    generator = torch.Generator().manual_seed(shuffle_seed + epoch)
+    training = config["training"]
+    workers = int(training.get("num_workers", 0))
+    if workers < 0:
+        raise ValueError("num_workers must be nonnegative")
+    pin_memory = bool(training.get("pin_memory", device_for(config).type == "cuda"))
+    kwargs = {
+        "dataset": dataset,
+        "collate_fn": collate,
+        "num_workers": workers,
+        "pin_memory": pin_memory,
+    }
+    batch_size = int(training["batch_size"])
+    lengths = getattr(dataset, "lengths", None)
+    if shuffle and bool(training.get("bucket_by_length", False)) and lengths is not None:
+        order = np.argsort(np.asarray(lengths), kind="stable")
+        batches = [order[start : start + batch_size].tolist() for start in range(0, len(order), batch_size)]
+        permutation = torch.randperm(len(batches), generator=generator).tolist()
+        kwargs["batch_sampler"] = [batches[i] for i in permutation]
+    else:
+        kwargs.update(batch_size=batch_size, shuffle=shuffle, generator=generator)
+    if workers:
+        kwargs.update(
+            persistent_workers=bool(training.get("persistent_workers", True)),
+            prefetch_factor=int(training.get("prefetch_factor", 4)),
+        )
+    return DataLoader(**kwargs)
 
 
 def to_device(batch, device):
-    return {key: value.to(device) if torch.is_tensor(value) else value for key, value in batch.items()}
+    return {
+        key: value.to(device, non_blocking=device.type == "cuda") if torch.is_tensor(value) else value
+        for key, value in batch.items()
+    }
 
 
 def score_prediction(prediction, dataset, data, config):

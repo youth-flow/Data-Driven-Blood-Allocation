@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
+from joblib import Parallel, delayed
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.neighbors import NearestNeighbors
 
@@ -70,6 +71,8 @@ class RandomForestWeights:
     max_features: str | float
     seed: int
     n_jobs: int = -1
+    max_samples: float | None = None
+    max_depth: int | None = None
 
     def fit(self, x: np.ndarray, y: np.ndarray) -> "RandomForestWeights":
         self.model_ = RandomForestRegressor(
@@ -79,11 +82,24 @@ class RandomForestWeights:
             random_state=self.seed,
             n_jobs=self.n_jobs,
             bootstrap=True,
+            max_samples=self.max_samples,
+            max_depth=self.max_depth,
         ).fit(x, y)
         self.train_leaves_ = self.model_.apply(x)
+        self.leaf_members_ = []
+        for tree in range(self.train_leaves_.shape[1]):
+            leaves = self.train_leaves_[:, tree]
+            order = np.argsort(leaves, kind="stable")
+            values, starts = np.unique(leaves[order], return_index=True)
+            ends = np.r_[starts[1:], len(order)]
+            self.leaf_members_.append(
+                {int(value): order[start:end].astype(np.int32) for value, start, end in zip(values, starts, ends)}
+            )
         return self
 
     def weights(self, x: np.ndarray) -> np.ndarray:
+        if len(x) * len(self.train_leaves_) > 50_000_000:
+            raise MemoryError("Dense forest weights are disabled at v10 scale; use predict_quantiles")
         query = self.model_.apply(x)
         result = np.zeros((len(x), len(self.train_leaves_)), dtype=np.float64)
         for tree in range(self.train_leaves_.shape[1]):
@@ -93,6 +109,29 @@ class RandomForestWeights:
                 result[row, members] += 1.0 / members.sum()
         result /= self.train_leaves_.shape[1]
         return result / result.sum(axis=1, keepdims=True)
+
+    def predict_quantiles(self, x, train_demand, taus, n_jobs=None):
+        """Exact forest-proximity quantiles without a dense test-by-train matrix."""
+        query = self.model_.apply(np.asarray(x, dtype=float))
+        demand = np.asarray(train_demand, dtype=float)
+        taus = tuple(float(tau) for tau in taus)
+        trees = query.shape[1]
+
+        def one(row):
+            members = [self.leaf_members_[tree][int(row[tree])] for tree in range(trees)]
+            indices = np.concatenate(members)
+            weights = np.concatenate(
+                [np.full(len(index), 1.0 / (trees * len(index)), dtype=np.float64) for index in members]
+            )
+            values = demand[indices]
+            order = np.argsort(values, kind="stable")
+            cumulative = np.cumsum(weights[order])
+            sorted_values = values[order]
+            return [sorted_values[min(np.searchsorted(cumulative, tau, side="left"), len(order) - 1)] for tau in taus]
+
+        workers = self.n_jobs if n_jobs is None else int(n_jobs)
+        rows = Parallel(n_jobs=workers, prefer="threads", batch_size=16)(delayed(one)(row) for row in query)
+        return np.asarray(rows, dtype=np.float64)
 
 
 def predict_weighted_quantiles(weights, train_demand, taus):

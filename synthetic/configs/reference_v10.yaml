@@ -1,0 +1,27 @@
+schema_version: 10
+generator_version: 10
+generator_name: AXID-DC v10 MDCEV
+scenario: AXID-DC-v10
+data_seed: 2026111401
+train_seed: 2026111401
+test_seed: 2026111402
+n_train: 524288
+n_test: 10000
+max_visible_orders: 138
+max_new_orders: 76
+demand_support_upper: 519.0
+target_inventory: 256.0
+dose_cap: 10.0
+gamma_scale: 0.7
+log_phi_intercept: -1.78
+copula_order: [n_old, n_new, inventory, planned_load, emergency_load]
+export_csv: false
+parameter_calibration:
+  status: hybrid_structural_calibration
+  kappa: fixed_scale_normalization
+  exogenous_distributions: processed_data_aggregate_calibration
+  gamma_phi_structure: preregistered_business_and_theory_structure
+  gamma_phi_coefficients: transparent_moment_calibration_not_full_structural_mle
+  aggregate_targets:
+    demand_mean: 20.85
+    demand_q90: 34.5

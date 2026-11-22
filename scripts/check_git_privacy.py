@@ -36,9 +36,12 @@ PREFIXES += tuple(f"{model}/{part}/" for model in MODEL_DIRS for part in ("src",
 ROOT_FILES |= {f"{model}/README.md" for model in MODEL_DIRS}
 ROOT_FILES |= {"data/数据预处理.py", ".githooks/pre-commit", ".githooks/pre-push"}
 SCRIPTS = {
+    "scripts/benchmark_v10_runtime.py",
+    "scripts/calibrate_v10_intercept.py",
     "scripts/check_git_privacy.py",
     "scripts/run_experiments.py",
     "scripts/run_synthetic_experiments.py",
+    "scripts/run_v10_experiment.py",
 }
 SOURCE_EXTENSIONS = {".py", ".md", ".yaml", ".yml", ".toml", ".sh"}
 PRIVATE_PARTS = {"__pycache__", "outputs", "results", "artifacts", "checkpoints", "generated", ".git"}

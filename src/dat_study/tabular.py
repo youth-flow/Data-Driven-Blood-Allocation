@@ -35,22 +35,36 @@ class PsiFeatures:
 
     def fit(self, data):
         self.version = int(data.schema.get("generator_version", 4))
-        self.columns = self.V8_COLUMNS if self.version == 9 else self.V6_COLUMNS if self.version in {6, 7, 8} else self.V4_COLUMNS
+        self.columns = (
+            self.V8_COLUMNS
+            if self.version in {9, 10}
+            else self.V6_COLUMNS
+            if self.version in {6, 7, 8}
+            else self.V4_COLUMNS
+        )
         return self
 
     def _daily_summary(self, data, daily):
+        cached = [f"psi_{name}" for name in self.V8_COLUMNS]
+        if self.version == 10 and all(name in daily.columns for name in cached):
+            return daily[cached].to_numpy(float)
         orders = data.orders[data.orders.decision_day.isin(daily.decision_day)].copy()
-        if self.version == 9:
-            orders["shortage"] = 1.0 - orders["hb"]
-            orders["ur"] = orders["u"] * orders["r"]
-            orders["u_hb"] = orders["u"] * orders["shortage"]
+        if self.version in {9, 10}:
+            if self.version == 10:
+                orders["u_scaled"] = orders["u"] / 10.0
+                orders["shortage"] = (170.0 - orders["hb"]) / 128.0
+            else:
+                orders["u_scaled"] = orders["u"]
+                orders["shortage"] = 1.0 - orders["hb"]
+            orders["ur"] = orders["u_scaled"] * orders["r"]
+            orders["u_hb"] = orders["u_scaled"] * orders["shortage"]
             orders["r_hb"] = orders["r"] * orders["shortage"]
             summary = orders.groupby("decision_day").agg(
                 ur=("ur", "mean"),
                 u_hb=("u_hb", "mean"),
                 r_hb=("r_hb", "mean"),
-                u_min=("u", "min"),
-                u_max=("u", "max"),
+                u_min=("u_scaled", "min"),
+                u_max=("u_scaled", "max"),
                 r_min=("r", "min"),
                 r_max=("r", "max"),
                 hb_min=("shortage", "min"),
@@ -111,12 +125,20 @@ class PsiFeatures:
         psi = self.transform(data, unique_days)
         lookup = {day: value for day, value in zip(unique_days.decision_day.to_numpy(), psi)}
         psi_rows = np.row_stack([lookup[day] for day in orders.decision_day.to_numpy()])
-        if self.version == 9:
+        if self.version in {9, 10}:
+            if self.version == 10:
+                patient = np.column_stack(
+                    [
+                        orders["u"].to_numpy(float) / 10.0,
+                        orders["r"].to_numpy(float),
+                        (orders["hb"].to_numpy(float) - 42.0) / 128.0,
+                    ]
+                )
+            else:
+                patient = orders[["u", "r", "hb"]].to_numpy(float)
             return np.column_stack(
                 [
-                    orders["u"].to_numpy(float),
-                    orders["r"].to_numpy(float),
-                    orders["hb"].to_numpy(float),
+                    patient,
                     psi_rows,
                 ]
             )
