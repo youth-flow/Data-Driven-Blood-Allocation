@@ -1,0 +1,98 @@
+{
+  "schema_version": "synthetic_axid_dc_v10",
+  "generator_version": 10,
+  "generator_name": "AXID-DC v10 MDCEV",
+  "integer_decision_day": true,
+  "compact_format": "axid_v10_csr_v1",
+  "compact_files": {
+    "daily": "daily.npz",
+    "patients": "patients.npy",
+    "patient_labels": "patient_labels.npy",
+    "patient_offsets": "patient_offsets.npy"
+  },
+  "order_num_cols": [
+    "u",
+    "r",
+    "hb"
+  ],
+  "order_cat_cols": [],
+  "day_feature_cols": [
+    "planned_load",
+    "emergency_load",
+    "n_registered",
+    "request_use_sum",
+    "risk_sum",
+    "hb_sum"
+  ],
+  "psi_summary_cols": [
+    "psi_ur",
+    "psi_u_hb",
+    "psi_r_hb",
+    "psi_u_min",
+    "psi_u_max",
+    "psi_r_min",
+    "psi_r_max",
+    "psi_hb_min",
+    "psi_hb_max"
+  ],
+  "inventory_feature": "It",
+  "inventory_position": 2,
+  "excluded_from_model_inputs": [
+    "D",
+    "D_new",
+    "known_recent_D",
+    "real_demand",
+    "A_plus",
+    "eta",
+    "epsilon",
+    "gamma",
+    "phi",
+    "lambda",
+    "Y",
+    "R",
+    "q",
+    "psi_ur",
+    "psi_u_hb",
+    "psi_r_hb",
+    "psi_u_min",
+    "psi_u_max",
+    "psi_r_min",
+    "psi_r_max",
+    "psi_hb_min",
+    "psi_hb_max"
+  ],
+  "information_groups": {
+    "day_context": [
+      "planned_load",
+      "emergency_load"
+    ],
+    "day_basic": [
+      "n_registered",
+      "request_use_sum"
+    ],
+    "day_clinical": [
+      "risk_sum",
+      "hb_sum"
+    ],
+    "order_basic_num": [
+      "u",
+      "r",
+      "hb"
+    ],
+    "order_basic_cat": []
+  },
+  "max_orders": 138,
+  "max_new_orders": 73,
+  "enforce_constructive_width": false,
+  "demand_support_upper": 520.0,
+  "demand_grid_step": null,
+  "target_inventory": 256.0,
+  "dose_cap": 10.0,
+  "copula_order": [
+    "n_old",
+    "n_new",
+    "inventory",
+    "planned_load",
+    "emergency_load"
+  ]
+}

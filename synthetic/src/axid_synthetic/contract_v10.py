@@ -24,6 +24,45 @@ SEEDS = {
     "bootstrap": 2026111406,
     "oracle": 2026111407,
 }
+MODEL_DAY_FEATURES = [
+    "c_p",
+    "c_e",
+    "inventory_scaled",
+    "n_visible_scaled",
+    "sum_u_scaled",
+    "sum_r_scaled",
+    "sum_hb_scaled",
+]
+TABULAR_COLUMNS = [
+    "c_p",
+    "c_e",
+    "inventory_scaled",
+    "n_visible_scaled",
+    "sum_u_scaled",
+    "sum_r_scaled",
+    "sum_hb_scaled",
+    "mean_u_r",
+    "mean_u_hb",
+    "mean_r_hb",
+    "u_min",
+    "u_max",
+    "r_min",
+    "r_max",
+    "hb_min",
+    "hb_max",
+]
+P3_DAY_GATES = {
+    "L0": [1, 1, 1, 0, 0, 0, 0],
+    "L1": [1, 1, 1, 1, 1, 0, 0],
+    "L2": [1, 1, 1, 1, 1, 1, 1],
+    "L3": [1, 1, 1, 1, 1, 1, 1],
+}
+P3_PATIENT_TOKENS = {
+    "L0": "fixed_dummy",
+    "L1": "fixed_dummy",
+    "L2": "fixed_dummy",
+    "L3": "full_visible_set",
+}
 
 
 def _require(condition: bool, message: str) -> None:
@@ -77,21 +116,41 @@ def validate_contract(protocol, reference):
     _require(int(sampling["order_dimension"]) == 3, "v10 patient input dimension must be three")
     _require(int(sampling["day_dimension"]) == 7, "v10 model day input dimension must be seven")
     _require(
-        int(sampling["max_visible_orders"]) == 138 and int(sampling["max_new_orders"]) == 76,
-        "v10 order caps must be 138 visible and 76 new",
+        sampling["model_day_features"] == MODEL_DAY_FEATURES,
+        "v10 day inputs must be the seven frozen direct-Hb features",
+    )
+    _require(
+        int(sampling["max_visible_orders"]) == 138 and int(sampling["max_new_orders"]) == 73,
+        "v10 order caps must be 138 visible and 73 new",
     )
     _require(sampling["visible_set_nonempty"] is True, "v10 visible patient set must be nonempty")
     _require(
-        _same_number(sampling["demand_lower"], 0.0) and _same_number(sampling["demand_upper"], 519.0),
-        "v10 demand support must be [0,519]",
+        _same_number(sampling["demand_lower"], 0.0) and _same_number(sampling["demand_upper"], 520.0),
+        "v10 demand support must be [0,520]",
+    )
+    _require(
+        sampling["day_scaling"]
+        == {
+            "inventory": "inventory / 520",
+            "n_visible": "n_visible / 138",
+            "sum_u": "sum(u) / 1380",
+            "sum_r": "sum(r) / 138",
+            "sum_hb": "sum((hb - 42) / 128) / 138",
+        },
+        "v10 day scaling must use direct normalized Hb and the frozen supports",
+    )
+    summary = sampling["tabular_summary"]
+    _require(
+        int(summary["dimension"]) == 16 and summary["columns"] == TABULAR_COLUMNS,
+        "v10 tabular baselines require the frozen 16-dimensional direct-Hb summary",
     )
     _require(int(reference["max_visible_orders"]) == 138, "v10 reference visible cap mismatch")
-    _require(int(reference["max_new_orders"]) == 76, "v10 reference new-patient cap mismatch")
-    _require(_same_number(reference["demand_support_upper"], 519.0), "v10 reference demand cap mismatch")
+    _require(int(reference["max_new_orders"]) == 73, "v10 reference new-patient cap mismatch")
+    _require(_same_number(reference["demand_support_upper"], 520.0), "v10 reference demand cap mismatch")
     _require(_same_number(reference["target_inventory"], 256.0), "v10 reference common G mismatch")
     _require(
-        _same_number(reference["gamma_scale"], 0.7)
-        and _same_number(reference["log_phi_intercept"], -1.78),
+        _same_number(reference["gamma_scale"], 0.43)
+        and _same_number(reference["log_phi_intercept"], -0.956),
         "v10 moment-calibrated gamma scale/intercept changed",
     )
 
@@ -109,7 +168,7 @@ def validate_contract(protocol, reference):
     _require(int(dat["day_ff"]) == 96, "v10 day FF width must remain 96")
     _require(dat["layer_norms"] == ["LN_sa", "LN_q", "LN_m"], "v10 must use exactly the three frozen LNs")
     _require(dat["dropout"] == 0.0 and dat["positional_encoding"] is False, "v10 DAT regularization changed")
-    _require(dat["output_clip"] == [0.0, 519.0], "v10 DAT output support must be [0,519]")
+    _require(dat["output_clip"] == [0.0, 520.0], "v10 DAT output support must be [0,520]")
     _require(
         dat["constructive_width_claim_for_M138"] is False,
         "v10 cannot claim the old M=8 constructive width result for M=138",
@@ -151,13 +210,23 @@ def validate_contract(protocol, reference):
     _require(performance["precision"] == "fp32", "v10 formal training precision must be FP32")
     _require(performance["taus"] == [0.9] and performance["targets"] == [256.0], "v10 has one tau and one G")
     _require(performance["model_seeds"] == [2026111404], "v10 fixes one model initialization")
+    _require(
+        performance["shared_neural_schedule_methods"] == ["DAT", "Set-ETO", "DeepQR"],
+        "v10 shared neural schedule scope changed",
+    )
     _require(performance["seeds"] == SEEDS, "v10 independent RNG seeds changed")
     _require(
         int(reference.get("train_seed", -1)) == SEEDS["dgp_train"]
         and int(reference.get("test_seed", -1)) == SEEDS["dgp_test"],
         "v10 generator reference must use the frozen independent train/test seeds",
     )
-    _require(performance["p3_information"]["levels"] == LEVELS, "v10 P3 levels changed")
+    information = performance["p3_information"]
+    _require(information["levels"] == LEVELS, "v10 P3 levels changed")
+    _require(
+        information["day_gates"] == P3_DAY_GATES
+        and information["patient_tokens"] == P3_PATIENT_TOKENS,
+        "v10 P3 information hierarchy changed",
+    )
     _require(performance["p2_ablation"]["variants"] == VARIANTS, "v10 P2 variants changed")
     _require(
         performance["p2_ablation"]["parameter_matched_variants"] is False,

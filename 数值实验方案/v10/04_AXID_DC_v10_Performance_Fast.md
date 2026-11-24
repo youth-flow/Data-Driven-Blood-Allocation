@@ -53,15 +53,39 @@ Pinball 只作为训练损失和运行诊断，不是最终性能指标。不存
 
 因此每个神经配置恰好看到一次训练池：\(128\times4096=524,288\)。无早停、无超参搜索、
 不使用测试集选择 checkpoint；最终权重为第 4,096 步权重。优化器仍为 AdamW，300 步
-线性 warm-up 后 cosine 衰减，正式精度为 FP32。
+线性 warm-up 后 cosine 衰减，正式精度为 FP32。该共同日级神经训练计划适用于
+DAT、DeepQR 与 Set-ETO；Flat 是明确披露的两模块 MSE 特例，各训练 4,096 步。
+
+模型输入冻结为患者3维
+
+\[
+a_i=(u_i/10,r_i,(Hb_i-42)/128)
+\]
+
+和日级7维
+
+\[
+X_t=\left(c_p,c_e,I/520,N^-/138,
+\sum u/1380,\sum r/138,\sum((Hb-42)/128)/138\right).
+\]
+
+所有模型输入均直接使用归一化 Hb，不使用 Hb shortage；MDCEV 内部 Hb 缺口不属于
+预测模型输入。
 
 ## 3. P3、P2、P1
 
-- P3：`L0/L1/L2/L3` 四个信息等级；L0–L2 使用固定 Dummy/Mask 防止人数泄漏。
+- P3：`L0/L1/L2/L3` 四个信息等级：L0 仅开放 \(c_p,c_e,I\)，L1 再开放
+  \(N^-,\sum u\)，L2 开放完整日级7维但仍无患者，L3 再开放完整患者集合。
+  L0–L2 使用同一个固定 Dummy/Mask；L1/L2 的人数只能来自已授权日级坐标。
 - P2：`Full/No-SA/No-Day-Query/Mean-Pool/Sum-Pool` 五个结构；不加入 parameter-matched 变体。
 - P1：`DAT/SAA/wSAA/Flat/Set-ETO/LQR/GBQR/DeepQR` 八种方法。
 - `P3-L3 = P2-Full = P1-DAT` 必须引用同一个 checkpoint 和同一组逐日预测。
 - 执行顺序：数据 → P3 → P2 → H1 人工门槛 → P1 → PF 与条件 Oracle。
+
+P1 的 wSAA/LQR/GBQR 使用固定16维表格摘要：日级7维、三个患者平均交互
+\(\overline{ur},\overline{uHb},\overline{rHb}\)，以及 \(u,r,Hb\) 各自最小值和最大值。
+这些量只由同一事前信息确定。Set-ETO 与 DeepQR 使用 Mean Pool，因为人数和三个总量
+已在日级输入中显式提供。
 
 ## 4. 条件 Oracle 与 Bootstrap
 

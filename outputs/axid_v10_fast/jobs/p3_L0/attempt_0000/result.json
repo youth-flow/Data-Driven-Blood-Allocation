@@ -1,0 +1,11 @@
+{
+  "name": "p3_L0",
+  "method": "DAT",
+  "variant": "full",
+  "information": "L0",
+  "n_test": 10000,
+  "prediction_min": 4.314235687255859,
+  "prediction_max": 57.53044128417969,
+  "fit_duration_seconds": 45.08239049999975,
+  "duration_seconds": 45.159061099999235
+}

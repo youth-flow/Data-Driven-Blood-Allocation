@@ -1,0 +1,11 @@
+{
+  "name": "p2_sum_pool",
+  "method": "DAT",
+  "variant": "sum_pool",
+  "information": "",
+  "n_test": 10000,
+  "prediction_min": 3.0605201721191406,
+  "prediction_max": 46.784393310546875,
+  "fit_duration_seconds": 38.73660139999993,
+  "duration_seconds": 38.76352830000178
+}

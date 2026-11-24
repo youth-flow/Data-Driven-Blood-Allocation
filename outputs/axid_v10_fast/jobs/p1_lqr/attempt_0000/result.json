@@ -1,0 +1,11 @@
+{
+  "name": "p1_lqr",
+  "method": "LQR",
+  "variant": "full",
+  "information": "",
+  "n_test": 10000,
+  "prediction_min": 0.0,
+  "prediction_max": 65.23527526855469,
+  "fit_duration_seconds": 0.5706731000027503,
+  "duration_seconds": 0.5879969999987225
+}

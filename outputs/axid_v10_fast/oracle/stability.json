@@ -1,0 +1,7 @@
+{
+  "days": 500,
+  "main_draws": 4096,
+  "audit_draws": 16384,
+  "mean_absolute_quantile_difference": 0.14767508907986332,
+  "max_absolute_quantile_difference": 0.6668861827242267
+}

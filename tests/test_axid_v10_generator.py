@@ -9,7 +9,6 @@ import yaml
 from axid_synthetic.generator_v10 import (
     COPULA_CORRELATION,
     DEMAND_UPPER,
-    DOSE_CAP,
     HB_LOWER,
     HB_UPPER,
     MAX_NEW_ORDERS,
@@ -38,7 +37,7 @@ def test_copula_support_and_inventory_inverse():
     assert np.linalg.eigvalsh(COPULA_CORRELATION).min() > 0
     assert np.all((1 <= n_old) & (n_old <= MAX_VISIBLE_ORDERS))
     assert np.all((0 <= n_new) & (n_new <= MAX_NEW_ORDERS))
-    assert np.all((40 <= inventory) & (inventory <= DEMAND_UPPER))
+    assert np.all((0 < inventory) & (inventory <= DEMAND_UPPER))
     assert np.all((0 <= cp) & (cp <= 1))
     assert np.all((0 <= ce) & (ce <= 1))
     probability = np.linspace(0.01, 0.99, 51)
@@ -51,18 +50,20 @@ def test_profiles_mapping_and_mdcev_kkt():
     rng = np.random.default_rng(23)
     old = draw_profiles(rng, 2000, "old")
     new = draw_profiles(rng, 2000, "new")
-    assert set(np.unique(old[:, 0])).issubset({0, 1, 2, 3, 4, 5, 6, 8, 10})
+    assert set(np.unique(old[:, 0])).issubset({1, 2, 3, 4, 5, 6, 8, 10})
     assert np.all((0 <= old[:, 1]) & (old[:, 1] <= 1))
     assert np.all((HB_LOWER <= old[:, 2]) & (old[:, 2] <= HB_UPPER))
-    assert new[:, 1].mean() > old[:, 1].mean()
+    # Main scenario does not manufacture a high-risk hidden-arrival advantage.
+    assert abs(new[:, 1].mean() - old[:, 1].mean()) < 0.03
     gamma, phi, ell, deficit = mechanism_parameters(old[:70], 0.7, 0.6, 0.0, np.zeros(70))
-    assert np.all((0.35 <= gamma) & (gamma <= 1.4))
+    assert np.all((0.39 <= gamma) & (gamma <= 0.87))
     assert np.all(phi > 0) and np.all((0 <= ell) & (ell <= 1)) and np.all((0 <= deficit) & (deficit <= 4))
-    doses, reserve, multiplier = mdcev_allocate(gamma, phi, 270.0)
-    assert np.all((0 <= doses) & (doses <= DOSE_CAP))
+    patient_cap = old[:70, 0]
+    doses, reserve, multiplier = mdcev_allocate(gamma, phi, 270.0, cap=patient_cap)
+    assert np.all((0 <= doses) & (doses <= patient_cap))
     assert multiplier > 0 and reserve > 0
     assert abs(reserve + doses.sum() - 270.0) < 1e-6
-    active = (doses > 1e-8) & (doses < DOSE_CAP - 1e-8)
+    active = (doses > 1e-8) & (doses < patient_cap - 1e-8)
     np.testing.assert_allclose(doses[active], gamma[active] * (phi[active] / multiplier - 1), atol=1e-8)
 
     gamma_batch = np.zeros((2, 70))
@@ -70,8 +71,12 @@ def test_profiles_mapping_and_mdcev_kkt():
     mask = np.zeros((2, 70), dtype=bool)
     gamma_batch[0], phi_batch[0], mask[0] = gamma, phi, True
     gamma_batch[1, :35], phi_batch[1, :35], mask[1, :35] = gamma[:35], phi[:35], True
-    batched = mdcev_demand_batch(gamma_batch, phi_batch, mask, np.array([270.0, 240.0]))
-    scalar_second = mdcev_allocate(gamma[:35], phi[:35], 240.0)[0].sum()
+    caps = np.zeros_like(gamma_batch)
+    caps[0], caps[1, :35] = patient_cap, patient_cap[:35]
+    batched = mdcev_demand_batch(
+        gamma_batch, phi_batch, mask, np.array([270.0, 240.0]), cap=caps
+    )
+    scalar_second = mdcev_allocate(gamma[:35], phi[:35], 240.0, cap=patient_cap[:35])[0].sum()
     np.testing.assert_allclose(batched, [doses.sum(), scalar_second], atol=2e-6)
 
 
@@ -82,6 +87,8 @@ def test_daily_and_conditional_demand_support():
         assert 0 <= sample["demand"] <= sample["inventory"] <= DEMAND_UPPER
         assert len(sample["old"]) == sample["n_old"]
         assert len(sample["new"]) == sample["n_new"]
+        patients = np.vstack([sample["old"], sample["new"]])
+        assert np.all(sample["Y"] <= patients[:, 0] + 1e-10)
         assert abs(sample["R"] + sample["demand"] - sample["inventory"]) < 1e-6
     old = draw_profiles(rng, 25, "old")
     counts = conditional_new_counts(rng, 25, 0.7, 0.4, 280.0, 100)
@@ -106,8 +113,14 @@ def test_compact_fold_export(tmp_path):
     assert schema["schema_version"] == "synthetic_axid_dc_v10"
     assert schema["compact_format"] == "axid_v10_csr_v1"
     assert schema["max_orders"] == MAX_VISIBLE_ORDERS
+    assert schema["day_feature_cols"][-1] == "hb_sum"
+    assert "hb_shortage_sum" not in schema["day_feature_cols"]
     assert split["train_start"] == 0 and split["train_end"] == 7
     assert split["test_start"] == 38 and split["test_end"] == 41
     assert len(daily["D"]) == 12 and offsets.shape == (13,)
     assert patients.shape == (int(offsets[-1]), 3) and labels.shape == (int(offsets[-1]),)
     assert all(name in daily for name in schema["psi_summary_cols"])
+    expected_hb_sum = np.array(
+        [((patients[offsets[j] : offsets[j + 1], 2] - 42.0) / 128.0).sum() for j in range(12)]
+    )
+    np.testing.assert_allclose(daily["hb_sum"], expected_hb_sum, rtol=2e-6, atol=2e-6)

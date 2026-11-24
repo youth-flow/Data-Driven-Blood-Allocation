@@ -1,0 +1,13 @@
+{
+  "complete": true,
+  "artifacts": {
+    "daily.npz": "03326414a8355a894137d46be37cd656b6cb2412f3fa94b0a5e028c8246d3429",
+    "patients.npy": "a8f91fceff297c0c7654f0d8d0155b5102130a10d1b2137592deb7bdf50a6d03",
+    "patient_labels.npy": "7e83ed89985a37abc94f51856c4d6bc4c06616df903270b653c1101bcdb0425f",
+    "patient_offsets.npy": "a55fa1276f76face573e70ed39fbee3fa1bf9ba8401b709f120690372f89f511",
+    "data_feature_schema.json": "62f59cd1c35c2e4d86f28bfddcd1bc8657cc5f2207838f42b1d1f1333476c64b",
+    "generation.yaml": "dd8602501d72845b4b9e0d3a085db769c18327358f07d2a9c418e8be8cac9ac4",
+    "split_manifest.json": "87b11650867b1c9b75c69f90dde8db81ccabb98b90a32d194ab60b43ee10f48d",
+    "preprocessing_state.json": "945d44f76ddc0b49cbbf091b11ba91dd5151247656a033d848a9ccee730b5dc4"
+  }
+}

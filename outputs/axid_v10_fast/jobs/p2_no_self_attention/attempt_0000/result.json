@@ -1,0 +1,11 @@
+{
+  "name": "p2_no_self_attention",
+  "method": "DAT",
+  "variant": "no_self_attention",
+  "information": "",
+  "n_test": 10000,
+  "prediction_min": 3.8522109985351562,
+  "prediction_max": 71.75199890136719,
+  "fit_duration_seconds": 41.16432700000223,
+  "duration_seconds": 41.259884899998724
+}

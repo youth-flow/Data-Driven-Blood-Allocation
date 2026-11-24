@@ -1,0 +1,12 @@
+{
+  "epochs": 1,
+  "optimizer_steps": 4096,
+  "history": [
+    {
+      "epoch": 1,
+      "training_loss": 3.6519375248462893,
+      "optimizer_steps": 4096,
+      "learning_rate": 3e-05
+    }
+  ]
+}

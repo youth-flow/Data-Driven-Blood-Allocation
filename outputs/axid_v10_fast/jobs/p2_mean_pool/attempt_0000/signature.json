@@ -1,0 +1,327 @@
+{
+  "scenario": "AXID-DC-v10",
+  "protocol": {
+    "protocol_version": 11,
+    "status": "frozen",
+    "scenario": "AXID-DC-v10",
+    "generator_family": "axid_dc_v10_mdcev_real_scale",
+    "training_mode": "direct_daily_scalar_quantile",
+    "data_access": "fully_artificial_only",
+    "decision": {
+      "tau": 0.9,
+      "common_G": 256.0,
+      "hospital_mdcev_G": 256.0,
+      "blood_center_target_G": 256.0,
+      "shortage_weight": 0.9,
+      "excess_weight": 0.1,
+      "nonnegative_replenishment": true
+    },
+    "sampling": {
+      "iid_days": true,
+      "dates_are_identifiers_only": true,
+      "patient_features": [
+        "u",
+        "r",
+        "hb"
+      ],
+      "day_state_features": [
+        "c_p",
+        "c_e",
+        "inventory"
+      ],
+      "model_day_features": [
+        "c_p",
+        "c_e",
+        "inventory_scaled",
+        "n_visible_scaled",
+        "sum_u_scaled",
+        "sum_r_scaled",
+        "sum_hb_scaled"
+      ],
+      "order_dimension": 3,
+      "day_dimension": 7,
+      "max_visible_orders": 138,
+      "max_new_orders": 73,
+      "visible_set_nonempty": true,
+      "demand_lower": 0.0,
+      "demand_upper": 520.0,
+      "fixed_clinical_scaling": true,
+      "patient_scaling": {
+        "u": "u / 10",
+        "r": "r",
+        "hb": "(hb - 42) / 128"
+      },
+      "day_scaling": {
+        "inventory": "inventory / 520",
+        "n_visible": "n_visible / 138",
+        "sum_u": "sum(u) / 1380",
+        "sum_r": "sum(r) / 138",
+        "sum_hb": "sum((hb - 42) / 128) / 138"
+      },
+      "tabular_summary": {
+        "dimension": 16,
+        "columns": [
+          "c_p",
+          "c_e",
+          "inventory_scaled",
+          "n_visible_scaled",
+          "sum_u_scaled",
+          "sum_r_scaled",
+          "sum_hb_scaled",
+          "mean_u_r",
+          "mean_u_hb",
+          "mean_r_hb",
+          "u_min",
+          "u_max",
+          "r_min",
+          "r_max",
+          "hb_min",
+          "hb_max"
+        ]
+      }
+    },
+    "dat": {
+      "expected_parameter_count": 51105,
+      "d_model": 64,
+      "patient_encoder": [
+        3,
+        64,
+        64
+      ],
+      "patient_hidden": 64,
+      "self_attention_layers": 1,
+      "self_attention_heads": 4,
+      "cross_attention_layers": 1,
+      "cross_attention_heads": 4,
+      "day_encoder": "affine",
+      "day_ff": 96,
+      "layer_norms": [
+        "LN_sa",
+        "LN_q",
+        "LN_m"
+      ],
+      "layer_norm_eps": 1e-05,
+      "activation": "relu",
+      "dropout": 0.0,
+      "positional_encoding": false,
+      "patient_ffn": false,
+      "output_norm": false,
+      "output_clip": [
+        0.0,
+        520.0
+      ],
+      "loss": "pinball",
+      "constructive_width_claim_for_M138": false
+    },
+    "performance_experiments": {
+      "n_train": 524288,
+      "n_test": 10000,
+      "train_pools": 1,
+      "test_pools": 1,
+      "validation_days": 0,
+      "validation_selection": false,
+      "hyperparameter_search": false,
+      "epochs": 1,
+      "batch_size": 128,
+      "optimizer_steps": 4096,
+      "optimizer": "AdamW",
+      "betas": [
+        0.9,
+        0.999
+      ],
+      "optimizer_eps": 1e-08,
+      "peak_learning_rate": 0.0003,
+      "warmup_steps": 300,
+      "warmup_start_learning_rate": 3e-05,
+      "final_learning_rate": 3e-05,
+      "schedule": "cosine",
+      "weight_decay": 0.0001,
+      "gradient_clip": 1.0,
+      "precision": "fp32",
+      "early_stopping": false,
+      "checkpoint": "final_step",
+      "taus": [
+        0.9
+      ],
+      "targets": [
+        256.0
+      ],
+      "model_seeds": [
+        2026111404
+      ],
+      "shared_neural_schedule_methods": [
+        "DAT",
+        "Set-ETO",
+        "DeepQR"
+      ],
+      "seeds": {
+        "dgp_train": 2026111401,
+        "dgp_test": 2026111402,
+        "shuffle": 2026111403,
+        "model_init": 2026111404,
+        "forest": 2026111405,
+        "bootstrap": 2026111406,
+        "oracle": 2026111407
+      },
+      "p3_information": {
+        "levels": [
+          "L0",
+          "L1",
+          "L2",
+          "L3"
+        ],
+        "full_reuse_id": "DAT-Full-L3",
+        "dummy_token_prevents_count_leakage": true,
+        "day_gates": {
+          "L0": [
+            1,
+            1,
+            1,
+            0,
+            0,
+            0,
+            0
+          ],
+          "L1": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            0,
+            0
+          ],
+          "L2": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "L3": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ]
+        },
+        "patient_tokens": {
+          "L0": "fixed_dummy",
+          "L1": "fixed_dummy",
+          "L2": "fixed_dummy",
+          "L3": "full_visible_set"
+        }
+      },
+      "p2_ablation": {
+        "variants": [
+          "full",
+          "no_self_attention",
+          "no_day_query",
+          "mean_pool",
+          "sum_pool"
+        ],
+        "full_reuse_id": "DAT-Full-L3",
+        "parameter_matched_variants": false
+      },
+      "p1_comparison": {
+        "methods": [
+          "DAT",
+          "SAA",
+          "wSAA",
+          "Flat",
+          "Set-ETO",
+          "LQR",
+          "GBQR",
+          "DeepQR"
+        ],
+        "dat_reuse_id": "DAT-Full-L3"
+      },
+      "execution_order": [
+        "data",
+        "P3",
+        "P2",
+        "H1",
+        "P1",
+        "PF_and_Oracle"
+      ],
+      "manual_gate_after_p2": true
+    },
+    "evaluation": {
+      "final_metrics": [
+        "P_PF",
+        "P_Oracle",
+        "MeanCost",
+        "SL_256"
+      ],
+      "nominal_service_rate": 0.9,
+      "saa_reference": "unconditional_train_left_quantile",
+      "perfect_foresight_reference": "realized_demand",
+      "conditional_oracle_reference": "left_conditional_quantile",
+      "clip_prescriptiveness": false,
+      "denominator_tolerance": 1e-10,
+      "bootstrap": {
+        "enabled": true,
+        "paired_by_test_day": true,
+        "repetitions": 2000,
+        "interval": "percentile",
+        "confidence_level": 0.95,
+        "retrain_models": false,
+        "rerun_dgp": false,
+        "rerun_oracle": false
+      },
+      "conditional_oracle": {
+        "required_for_final_metrics": true,
+        "method": "conditional_monte_carlo",
+        "paths_per_test_day": 4096,
+        "stability_check_days": 500,
+        "stability_check_paths": 16384,
+        "reuse_across_methods": true
+      }
+    },
+    "runtime": {
+      "conda_environment": "attention",
+      "python_executable": "D:\\anaconda\\envs\\attention\\python.exe",
+      "device": "cuda",
+      "formal_precision": "fp32",
+      "allow_tf32": false,
+      "use_bf16": false,
+      "data_format": "csr_memmap",
+      "dynamic_batch_padding": true,
+      "bucket_by_visible_orders": true,
+      "dataloader_workers": 4,
+      "pin_memory": true,
+      "persistent_workers": true,
+      "non_blocking_device_transfer": true,
+      "dgp_chunk_days": 10000,
+      "sequential_gpu_models": true,
+      "cpu_worker_budget": 10
+    },
+    "implementation_gates": [
+      "v10_files_do_not_overwrite_v8",
+      "one_shared_G_256",
+      "three_patient_features_seven_day_features",
+      "max_visible_138_max_new_73",
+      "demand_support_0_520",
+      "direct_hb_no_shortage_input",
+      "one_train_pool_one_test_pool_no_validation",
+      "batch128_steps4096_train524288_test10000",
+      "p3_four_p2_five_p1_eight",
+      "exactly_two_P_mean_cost_and_target_service_rate",
+      "paired_bootstrap_2000",
+      "conditional_oracle_required_for_second_P",
+      "attention_environment_gpu_fp32"
+    ]
+  },
+  "data_identity": "ce83de8cb9baa8a5545b1ff5b9093f5cb3cd11ee446f6d41c11522e27d5aa13b",
+  "name": "p2_mean_pool",
+  "method": "DAT",
+  "variant": "mean_pool",
+  "information": null,
+  "smoke": false,
+  "code": "e81eccb876ac1864648ee292f38c4b32e7d75a7910a3b29cdab76f94a9d3e882"
+}

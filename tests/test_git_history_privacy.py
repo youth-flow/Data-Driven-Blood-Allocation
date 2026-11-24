@@ -93,3 +93,35 @@ def test_unknown_and_binary_file_types_fail_closed():
         "data/processed/data.csv",
     ):
         assert not module.allowed(name)
+
+
+def test_frozen_v10_release_allowlist_is_exact():
+    spec = importlib.util.spec_from_file_location("privacy_guard_for_v10_release", GUARD)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    allowed = (
+        "数值实验方案/v10/05_AXID_DC_v10_Empirically_Calibrated_DGP.tex",
+        "数值实验方案/v10/05_AXID_DC_v10_Empirically_Calibrated_DGP.pdf",
+        "outputs/axid_v10_fast/final_metrics.csv",
+        "outputs/axid_v10_fast/daily_metric_arrays.npz",
+        "outputs/axid_v10_fast/dataset/generation.yaml",
+        "outputs/axid_v10_fast/oracle/prediction.npy",
+        "outputs/axid_v10_fast/stages/p3.json",
+        "outputs/axid_v10_fast/jobs/p2_no_day_query/complete.json",
+        "outputs/axid_v10_fast/jobs/p1_deepqr/attempt_0000/prediction.npy",
+    )
+    for name in allowed:
+        assert module.allowed(name)
+    rejected = (
+        "outputs/axid_v10_fast/dataset/patients.npy",
+        "outputs/axid_v10_fast/jobs/p1_wsaa/attempt_0000/artifact.pt",
+        "outputs/axid_v10_fast/jobs/unknown/complete.json",
+        "outputs/another_run/final_metrics.csv",
+        "数值实验方案/v10/unreviewed.pdf",
+    )
+    for name in rejected:
+        assert not module.allowed(name)
+    assert not module.content_problems(
+        "outputs/axid_v10_fast/oracle/prediction.npy", b"\x93NUMPY\0"
+    )
+    assert module.content_problems("docs/unreviewed.bin", b"\0")

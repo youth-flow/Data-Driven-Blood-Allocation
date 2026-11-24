@@ -1,0 +1,87 @@
+{
+  "stage": "p1",
+  "complete": true,
+  "jobs": [
+    {
+      "name": "p1_saa",
+      "method": "SAA",
+      "variant": "full",
+      "information": "",
+      "n_test": 10000,
+      "prediction_min": 34.38153076171875,
+      "prediction_max": 34.38153076171875,
+      "fit_duration_seconds": 0.9197308000002522,
+      "duration_seconds": 1.054635500000586
+    },
+    {
+      "name": "p1_wsaa",
+      "method": "wSAA",
+      "variant": "full",
+      "information": "",
+      "n_test": 10000,
+      "prediction_min": 7.40809440612793,
+      "prediction_max": 71.05891418457031,
+      "fit_duration_seconds": 42.01769869999771,
+      "duration_seconds": 42.188784199999645
+    },
+    {
+      "name": "p1_flat",
+      "method": "Flat",
+      "variant": "full",
+      "information": "",
+      "n_test": 10000,
+      "prediction_min": 1.4929583072662354,
+      "prediction_max": 60.52040100097656,
+      "fit_duration_seconds": 11.881016999999702,
+      "duration_seconds": 11.903307799999311
+    },
+    {
+      "name": "p1_set_eto",
+      "method": "Set-ETO",
+      "variant": "full",
+      "information": "",
+      "n_test": 10000,
+      "prediction_min": 7.156445598562674,
+      "prediction_max": 82.56737288966096,
+      "fit_duration_seconds": 34.12333349999972,
+      "duration_seconds": 34.14178919999904
+    },
+    {
+      "name": "p1_lqr",
+      "method": "LQR",
+      "variant": "full",
+      "information": "",
+      "n_test": 10000,
+      "prediction_min": 0.0,
+      "prediction_max": 65.23527526855469,
+      "fit_duration_seconds": 0.5706731000027503,
+      "duration_seconds": 0.5879969999987225
+    },
+    {
+      "name": "p1_gbqr",
+      "method": "GBQR",
+      "variant": "full",
+      "information": "",
+      "n_test": 10000,
+      "prediction_min": 5.587363639875665,
+      "prediction_max": 76.04600317175024,
+      "fit_duration_seconds": 4.607481099999859,
+      "duration_seconds": 4.636540100000275
+    },
+    {
+      "name": "p1_deepqr",
+      "method": "DeepQR",
+      "variant": "full",
+      "information": "",
+      "n_test": 10000,
+      "prediction_min": 4.826202392578125,
+      "prediction_max": 56.02195739746094,
+      "fit_duration_seconds": 30.07465940000111,
+      "duration_seconds": 30.091813099999854
+    }
+  ],
+  "aliases": {
+    "p1_dat": "p3_L3"
+  },
+  "code_fingerprint": "e81eccb876ac1864648ee292f38c4b32e7d75a7910a3b29cdab76f94a9d3e882"
+}

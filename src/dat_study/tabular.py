@@ -12,7 +12,13 @@ def ordered_quantiles(values):
 
 
 class PsiFeatures:
-    """Fixed pre-decision summary: 23 dims for v3/v4, 16 dims for AXID-DC v6."""
+    """Fixed pre-decision summaries built from the authorized patient set.
+
+    AXID-DC v10 uses Hb in its original direction everywhere in the model
+    interface.  Its cached ``u_hb``/``r_hb`` column names are retained for
+    artifact compatibility, but they contain products with normalized Hb,
+    never a haemoglobin-shortage transform.
+    """
 
     V8_COLUMNS = ["ur", "u_hb", "r_hb", "u_min", "u_max", "r_min", "r_max", "hb_min", "hb_max"]
     V6_COLUMNS = ["ur", "us", "rs", "u_min", "u_max", "r_min", "r_max", "s_min", "s_max"]
@@ -52,13 +58,14 @@ class PsiFeatures:
         if self.version in {9, 10}:
             if self.version == 10:
                 orders["u_scaled"] = orders["u"] / 10.0
-                orders["shortage"] = (170.0 - orders["hb"]) / 128.0
+                orders["hb_scaled"] = (orders["hb"] - 42.0) / 128.0
             else:
                 orders["u_scaled"] = orders["u"]
-                orders["shortage"] = 1.0 - orders["hb"]
+                # v9's historical feature contract used the reverse Hb scale.
+                orders["hb_scaled"] = 1.0 - orders["hb"]
             orders["ur"] = orders["u_scaled"] * orders["r"]
-            orders["u_hb"] = orders["u_scaled"] * orders["shortage"]
-            orders["r_hb"] = orders["r"] * orders["shortage"]
+            orders["u_hb"] = orders["u_scaled"] * orders["hb_scaled"]
+            orders["r_hb"] = orders["r"] * orders["hb_scaled"]
             summary = orders.groupby("decision_day").agg(
                 ur=("ur", "mean"),
                 u_hb=("u_hb", "mean"),
@@ -67,8 +74,8 @@ class PsiFeatures:
                 u_max=("u_scaled", "max"),
                 r_min=("r", "min"),
                 r_max=("r", "max"),
-                hb_min=("shortage", "min"),
-                hb_max=("shortage", "max"),
+                hb_min=("hb_scaled", "min"),
+                hb_max=("hb_scaled", "max"),
             )
         elif self.version in {6, 7, 8}:
             orders["ur"] = orders["u"] * orders["r"]

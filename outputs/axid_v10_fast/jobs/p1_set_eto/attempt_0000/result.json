@@ -1,0 +1,11 @@
+{
+  "name": "p1_set_eto",
+  "method": "Set-ETO",
+  "variant": "full",
+  "information": "",
+  "n_test": 10000,
+  "prediction_min": 7.156445598562674,
+  "prediction_max": 82.56737288966096,
+  "fit_duration_seconds": 34.12333349999972,
+  "duration_seconds": 34.14178919999904
+}

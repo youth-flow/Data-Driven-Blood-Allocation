@@ -1,0 +1,54 @@
+{
+  "stage": "p2",
+  "complete": true,
+  "jobs": [
+    {
+      "name": "p2_no_self_attention",
+      "method": "DAT",
+      "variant": "no_self_attention",
+      "information": "",
+      "n_test": 10000,
+      "prediction_min": 3.8522109985351562,
+      "prediction_max": 71.75199890136719,
+      "fit_duration_seconds": 41.16432700000223,
+      "duration_seconds": 41.259884899998724
+    },
+    {
+      "name": "p2_no_day_query",
+      "method": "DAT",
+      "variant": "no_day_query",
+      "information": "",
+      "n_test": 10000,
+      "prediction_min": 1.3537330627441406,
+      "prediction_max": 70.83209228515625,
+      "fit_duration_seconds": 45.84183370000028,
+      "duration_seconds": 45.85988490000091
+    },
+    {
+      "name": "p2_mean_pool",
+      "method": "DAT",
+      "variant": "mean_pool",
+      "information": "",
+      "n_test": 10000,
+      "prediction_min": 1.1354446411132812,
+      "prediction_max": 71.5238037109375,
+      "fit_duration_seconds": 39.594345699999394,
+      "duration_seconds": 39.61710909999965
+    },
+    {
+      "name": "p2_sum_pool",
+      "method": "DAT",
+      "variant": "sum_pool",
+      "information": "",
+      "n_test": 10000,
+      "prediction_min": 3.0605201721191406,
+      "prediction_max": 46.784393310546875,
+      "fit_duration_seconds": 38.73660139999993,
+      "duration_seconds": 38.76352830000178
+    }
+  ],
+  "aliases": {
+    "p2_full": "p3_L3"
+  },
+  "code_fingerprint": "e81eccb876ac1864648ee292f38c4b32e7d75a7910a3b29cdab76f94a9d3e882"
+}

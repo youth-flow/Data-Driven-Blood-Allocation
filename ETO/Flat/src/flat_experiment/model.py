@@ -1,4 +1,4 @@
-"""Flat v7: two independently MSE-supervised small MLPs."""
+"""Flat baseline: two independently MSE-supervised small MLPs."""
 
 from torch import nn
 

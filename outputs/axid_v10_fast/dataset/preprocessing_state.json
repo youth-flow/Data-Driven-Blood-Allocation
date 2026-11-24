@@ -1,0 +1,51 @@
+{
+  "feature_fit_end": 524287,
+  "numeric_scalers": {
+    "order": {
+      "u": {
+        "mean": 0.0,
+        "std": 10.0
+      },
+      "r": {
+        "mean": 0.0,
+        "std": 1.0
+      },
+      "hb": {
+        "mean": 42.0,
+        "std": 128.0
+      }
+    },
+    "day": {
+      "planned_load": {
+        "mean": 0.0,
+        "std": 1.0
+      },
+      "emergency_load": {
+        "mean": 0.0,
+        "std": 1.0
+      },
+      "n_registered": {
+        "mean": 0.0,
+        "std": 138.0
+      },
+      "request_use_sum": {
+        "mean": 0.0,
+        "std": 1380.0
+      },
+      "risk_sum": {
+        "mean": 0.0,
+        "std": 138.0
+      },
+      "hb_sum": {
+        "mean": 0.0,
+        "std": 138.0
+      }
+    },
+    "inventory": {
+      "It": {
+        "mean": 0.0,
+        "std": 520.0
+      }
+    }
+  }
+}

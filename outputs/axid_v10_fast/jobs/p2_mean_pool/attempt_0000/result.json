@@ -1,0 +1,11 @@
+{
+  "name": "p2_mean_pool",
+  "method": "DAT",
+  "variant": "mean_pool",
+  "information": "",
+  "n_test": 10000,
+  "prediction_min": 1.1354446411132812,
+  "prediction_max": 71.5238037109375,
+  "fit_duration_seconds": 39.594345699999394,
+  "duration_seconds": 39.61710909999965
+}

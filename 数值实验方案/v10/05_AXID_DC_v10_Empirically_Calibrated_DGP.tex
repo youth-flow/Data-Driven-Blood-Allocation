@@ -1,0 +1,404 @@
+\documentclass[a4paper,fontset=none]{ctexart}
+\usepackage[a4paper,left=17mm,right=17mm,top=15mm,bottom=15mm,headsep=4mm,footskip=8mm]{geometry}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{booktabs,array,tabularx,multirow}
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+\usepackage{microtype}
+\usepackage{fontspec}
+\usepackage{enumitem}
+
+\setmainfont{Times New Roman}
+\setsansfont{Arial}
+\ifdefined\DGPFontPath
+  \setCJKmainfont[
+    Path=\DGPFontPath,
+    UprightFont=NotoSerifSC-Regular.ttf,
+    BoldFont=NotoSerifSC-Bold.ttf
+  ]{NotoSerifSC-Regular.ttf}
+  \setCJKsansfont[
+    Path=\DGPFontPath,
+    UprightFont=NotoSansSC-Regular.ttf,
+    BoldFont=NotoSansSC-Bold.ttf
+  ]{NotoSansSC-Regular.ttf}
+  \setCJKmonofont[
+    Path=\DGPFontPath
+  ]{NotoSansSC-Regular.ttf}
+\else
+  % Portable TeX Live fallback. The released PDF uses embedded Noto SC.
+  \setCJKmainfont{FandolSong}
+  \setCJKsansfont{FandolHei}
+  \setCJKmonofont{FandolFang}
+\fi
+
+\definecolor{ink}{HTML}{22252A}
+\definecolor{muted}{HTML}{68717A}
+\definecolor{rule}{HTML}{8F969D}
+\definecolor{soft}{HTML}{F3F4F5}
+\color{ink}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{1.5pt}
+\setlength{\abovedisplayskip}{4pt}
+\setlength{\belowdisplayskip}{4pt}
+\setlength{\abovedisplayshortskip}{3pt}
+\setlength{\belowdisplayshortskip}{3pt}
+\setlength{\jot}{1.5pt}
+\renewcommand{\arraystretch}{1.13}
+\setlist[itemize]{leftmargin=1.3em,itemsep=1pt,topsep=2pt,parsep=0pt}
+
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\fancyfoot[L]{\fontsize{8}{9}\selectfont\color{muted} AXID-DC v10\quad $|$\quad Empirically calibrated DGP}
+\fancyfoot[R]{\fontsize{8}{9}\selectfont\color{muted}\thepage/3}
+
+\newcommand{\pagetitle}[2]{%
+  \begin{center}
+    {\fontsize{17.5}{20.5}\selectfont\bfseries #1}\par
+    \vspace{1.5pt}
+    {\fontsize{10}{11.5}\selectfont\itshape #2}
+  \end{center}
+  \vspace{4pt}
+  \color{rule}\hrule height 0.55pt\color{ink}
+  \vspace{5pt}}
+\newcommand{\stage}[2]{%
+  \vspace{5pt}\noindent
+  {\fontsize{11.4}{13}\selectfont\bfseries #1\quad #2}\par
+  \vspace{1.5pt}\color{rule}\hrule height 0.45pt\color{ink}\vspace{3pt}}
+\newcommand{\substage}[2]{%
+  \vspace{2.5pt}\noindent{\fontsize{9.7}{11}\selectfont\bfseries #1.\ #2}\quad}
+\newcommand{\note}[2]{%
+  \par\vspace{1.5pt}{\fontsize{8.25}{9.7}\selectfont\color{muted}\textbf{#1}\quad #2}\par}
+\newcommand{\keybox}[1]{\boxed{\displaystyle #1}}
+\newcommand{\TN}{\operatorname{TN}}
+\newcommand{\NB}{\operatorname{NB}}
+\newcommand{\Beta}{\operatorname{Beta}}
+\newcommand{\Gum}{\operatorname{Gumbel}}
+\newcommand{\softbox}[1]{%
+  \noindent\colorbox{soft}{\parbox{\dimexpr\linewidth-2\fboxsep\relax}{#1}}}
+
+\begin{document}
+\fontsize{9}{11.2}\selectfont
+
+% ---------------------------------------------------------------------------
+% Page 1
+% ---------------------------------------------------------------------------
+\pagetitle{AXID-DC v10：真实特征映射与信息边界}
+{Real-to-Synthetic Mapping and Decision-Time Information}
+
+\softbox{\textbf{校准与测试边界}\quad
+2013-01-01 至 2019-12-28 仅用于经验校准；2020 年完全留出作真实数据测试。
+\quad
+$A_t^-$：决策前可见；$A_t^+,N_t^+$：决策后隐藏；$q_t\notin\mathrm{DGP}$。}
+
+\stage{第一块}{真实数据 $\longrightarrow$ 八个原始生成量}
+
+\[
+\keybox{W_t=(u,r,Hb,c_p,c_e,I,N^-,N^+)}
+\qquad\text{八个 DGP 原始生成量。}
+\]
+
+\begin{center}
+\fontsize{8.25}{9.8}\selectfont
+\begin{tabularx}{0.99\textwidth}{
+  >{\bfseries}p{12mm}
+  >{\raggedright\arraybackslash}p{63mm}
+  >{\centering\arraybackslash}p{29mm}
+  X}
+\toprule
+量 & 真实字段与确定映射 & 模型尺度 & 设置理由\\
+\midrule
+$u$ &
+$s=\operatorname{coalesce}(\text{用血},0)+\operatorname{coalesce}(\text{备血},0)$；
+$g(s):\,0/1\mapsto1,\ 2\!:\!6\mapsto s,\ 7/8\mapsto8,\ \ge9\mapsto10$ &
+$u/10$ &
+保留总申请资源规模；合并稀疏尾部并保证正容量。\\
+
+$r$ &
+$r=(6E+4B+2C+V)/13$；
+$E$：急救/急诊，$B$：出血/创伤，$C$：白血病/肿瘤/肝病，
+$V=\mathbf1\{\text{年龄}\ge65\}$ &
+$r\in[0,1]$ &
+透明的事前严重度指数；不含 $Hb$、发血量或结局，避免重复计量和标签泄漏。\\
+
+$Hb$ &
+缺失置 122，随后截断到 $[42,170]$ g/L &
+$(Hb-42)/128$ &
+保留临床方向；中位替代和截断抑制缺失及录入异常。\\
+
+$c_p$ &
+$n_p=\sum_{i\in A^-}\mathbf1\{\text{手术备血或病房用血}\}$；
+$c_p=\min\{1,\log(1+n_p)/\log89\}$ &
+$c_p\in[0,1]$ &
+压缩计划业务右偏计数；88 是训练期 0.99 分位数。\\
+
+$c_e$ &
+$n_e=\sum_{i\in A^-}\mathbf1\{\text{急救用血}\}$；
+$c_e=\min\{1,\log(1+n_e)/\log41\}$ &
+$c_e\in[0,1]$ &
+压缩急救业务右偏计数；40 是训练期 0.99 分位数。\\
+
+$I$ &
+O 型红细胞期初可用库存；按“入库次日可用，发出/过期扣减”重构 &
+$I/520$ &
+与需求、发血量和共同目标使用同一资源单位。\\
+
+$N^-,N^+$ &
+$N^-=|A^-|$：截点前可见人数；
+$N^+=|A^+|$：截点后新增人数 &
+$N^-/138$；\newline
+$N^+$ 不输入 &
+$N^+$ 仅刻画不可见到达，不向预测模型泄漏未来信息。\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\note{识别口径}{$r$ 是可审计的运营严重度索引，不宣称为经临床验证的风险量表；八特征映射仅使用决策前可得字段。}
+
+\stage{模型输入}{患者三维 token + 日级七维汇总}
+
+\[
+\keybox{x_{it}^{\mathrm{pat}}
+=\left(\frac{u_i}{10},\,r_i,\,\frac{Hb_i-42}{128}\right)},\qquad i\in A_t^- .
+\]
+\[
+\keybox{
+X_t=\left(
+c_{p,t},c_{e,t},\frac{I_t}{520},\frac{N_t^-}{138},
+\frac{\sum_{i\in A_t^-}u_i}{1380},
+\frac{\sum_{i\in A_t^-}r_i}{138},
+\frac{\sum_{i\in A_t^-}(Hb_i-42)/128}{138}
+\right)\in[0,1]^7 } .
+\]
+
+\softbox{\textbf{关键区别}\quad
+八个原始生成量 $\neq$ DAT 输入维度。
+DAT 接收可见患者的三维 token 和七维日级汇总；$N^+$、$A_t^+$、MDCEV 随机项及实现需求均不进入预测输入。}
+
+\newpage
+
+% ---------------------------------------------------------------------------
+% Page 2
+% ---------------------------------------------------------------------------
+\pagetitle{AXID-DC v10：经验边际、依赖结构与合成抽样}
+{Empirical Marginals, Dependence, and Synthetic Sampling}
+
+\[
+\text{真实映射后样本}
+\longrightarrow
+\text{经验边际与秩相关}
+\longrightarrow
+\text{冻结分布参数}
+\longrightarrow
+\text{完全合成数据}.
+\]
+\softbox{\textbf{运行边界}\quad
+正式性能试验直接从冻结后的八特征联合分布抽样，不再逐行读取真实记录；不同日期独立抽样，日内变量保持相关。}
+
+\stage{第二块}{日级五变量的联合生成}
+
+\noindent
+\begin{minipage}[t]{0.49\textwidth}
+\substage{B1}{冻结边际}
+\[
+\begin{aligned}
+N^-&=\operatorname{clip}_{[1,138]}
+\{\NB(6.7049,.105305)\},\\
+N^+&=\operatorname{clip}_{[0,73]}
+\{\NB(4.6768,.142891)\},\\
+c_p&\sim\Beta(6.60,1.41),\\
+c_e&\sim\Beta(2.95,2.05),\\
+I&\sim .472753\,\TN_{[0,520]}(246.704,37.565^2)\\
+&\quad+.527247\,\TN_{[0,520]}(314.756,38.244^2).
+\end{aligned}
+\]
+\note{参数化}{$\NB(a,p)$ 采用 $\mathbb E[N]=a(1-p)/p$。}
+\end{minipage}
+\hfill
+\begin{minipage}[t]{0.49\textwidth}
+\substage{B2}{Gaussian copula}
+\[
+Z_t\sim\mathcal N_5(0,\Sigma),\qquad
+W_{jt}=F_j^{-1}\{\Phi(Z_{jt})\},
+\]
+\[
+\Sigma=
+\begin{pmatrix}
+1& .220&-.194& .891& .520\\
+.220&1&-.112& .147& .268\\
+-.194&-.112&1&-.048&-.439\\
+.891& .147&-.048&1& .240\\
+.520& .268&-.439& .240&1
+\end{pmatrix},
+\]
+\[
+\text{顺序 }(N^-,N^+,I,c_p,c_e).
+\]
+\note{估计}{$\Sigma=.95\widehat\Sigma_{\rm rank}+.05I_5$，即训练期秩相关向单位阵收缩 $5\%$。}
+\end{minipage}
+
+\vspace{3pt}
+\begin{center}
+\fontsize{8.15}{9.5}\selectfont
+\begin{tabularx}{0.98\textwidth}{>{\bfseries}p{26mm}X}
+\toprule
+结构选择 & 理由\\
+\midrule
+负二项人数 & 允许明显的过度离散，并通过截断匹配业务支持。\\
+Beta / 双截断混合 & Beta 严格匹配压力的 $[0,1]$ 支持；双峰库存混合保留两个运营状态。\\
+Gaussian copula & 保留“计划压力-可见人数”“急诊压力-人数”“压力-库存”等经验依赖；收缩保证正定和外推稳定。\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\stage{患者画像}{经验离散边际与条件 $Hb$ 混合}
+
+\substage{B3}{申请量与严重度 PMF}
+\[
+\begin{array}{c|rrrrrrrr}
+u&1&2&3&4&5&6&8&10\\ \hline
+\Pr(u)&.001219&.220730&.082619&.631536&.003752&.026695&.023018&.010431
+\end{array}
+\]
+\begin{align*}
+r&=k/13,\qquad k=0,\ldots,13,\\[-2pt]
+\Pr(r)&=(.295695,.191127,.149705,.127568,.012982,.008630,.065153,\\[-4pt]
+&\hspace{25mm}.052734,.057030,.018291,.010168,.008217,.002007,.000694).
+\end{align*}
+
+\substage{B4}{条件血红蛋白}
+令 $L:r<.25$、$M:.25\le r<.55$、$H:r\ge.55$。在 $[42,170]$ 上，
+\[
+\begin{array}{c|c@{\;}c|c@{\;}c}
+\text{层}&w_1&\TN(\mu_1,\sigma_1^2)&w_2&\TN(\mu_2,\sigma_2^2)\\ \hline
+L&.201&\TN(79.8,21.0^2)&.799&\TN(135.6,16.0^2)\\
+M&.764&\TN(59.8,9.4^2)&.236&\TN(110.2,26.0^2)\\
+H&.831&\TN(57.8,8.4^2)&.169&\TN(101.1,27.2^2)
+\end{array}
+\qquad
+\Pr(Hb\text{ 缺失})=.01506,\quad Hb\leftarrow122.
+\]
+
+\begin{center}
+\fontsize{8.15}{9.5}\selectfont
+\begin{tabularx}{0.98\textwidth}{>{\bfseries}p{25mm}X >{\bfseries}p{28mm}X}
+\toprule
+$u,r$ & 经验离散 PMF，保留尖峰与离散构成。 &
+$Hb\mid r$ & 条件双成分分布保留风险相关和高低 $Hb$ 亚群。\\
+$u\perp(r,Hb)$ & 有限样本下的稳健简化，不作事实性独立宣称。 &
+$A^-,A^+$ & 给定 $N^-,N^+$ 后独立抽取患者画像；新旧集合使用同一画像分布。\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\newpage
+
+% ---------------------------------------------------------------------------
+% Page 3
+% ---------------------------------------------------------------------------
+\pagetitle{AXID-DC v10：MDCEV 发血机制与结构校准}
+{Structural Allocation, Interactions, and Calibration}
+
+\stage{第三块}{患者效用参数与随机性}
+
+对医院当日全部患者 $A_t=A_t^-\cup A_t^+$，定义
+\[
+\ell_i=\frac{\log(1+u_i)}{\log11},\qquad
+d_i=\min\left\{4,\left[\frac{70+10r_i-Hb_i}{10}\right]_+\right\},
+\]
+\[
+\keybox{\gamma_i=.43(.5+1.5\ell_i)},\qquad
+\keybox{\log\phi_{it}=-.956+.15\ell_i+1.20r_i+.45d_i
++.40c_{p,t}\ell_i+.60c_{e,t}r_i+\eta_t+\epsilon_{it}}.
+\]
+\[
+\eta_t\sim\mathcal N(0,.08^2),\qquad
+\epsilon_{it}\sim\Gum(-.12\gamma_E,.12),\qquad
+\mathbb E[\epsilon_{it}]=0,\quad \operatorname{SD}(\epsilon_{it})\approx.154.
+\]
+
+\begin{center}
+\fontsize{8.15}{9.6}\selectfont
+\begin{tabularx}{0.98\textwidth}{
+  >{\bfseries}p{18mm}
+  >{\centering\arraybackslash}p{14mm}
+  >{\centering\arraybackslash}p{27mm}
+  X}
+\toprule
+结构项 & 系数 & 数值效应 & 运营含义与设置理由\\
+\midrule
+$\ell_i$ & $.15$ & 温和量效应 & $u$ 已进入发血上限和 $\gamma_i$，故只保留温和的额外优先度。\\
+$r_i$ & $1.20$ & $e^{1.2}=3.32$ & 最强稳定临床优先信号。\\
+$d_i$ & $.45$ & 每 10 g/L 乘 $1.57$ & 阈值随风险由 70 升至 80；上限 4 抑制极端值。\\
+$c_p\ell_i$ & $.40$ & 最大乘 $1.49$ & 计划压力只强化大申请患者，而非对所有患者等幅平移。\\
+$c_er_i$ & $.60$ & 最大乘 $1.82$ & 急诊压力优先强化高风险患者。\\
+$\eta_t,\epsilon_{it}$ & $.08,.12$ & 日 / 人随机性 & 分别产生同日共同冲击和患者异质性。\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\softbox{\textbf{为什么 $\gamma$ 没有随机扰动}\quad
+$\gamma_i$ 固定为申请规模的单调函数，以保持饱和曲率可解释、可识别；随机性只进入边际优先度 $\phi_{it}$。}
+
+\stage{联合发血}{MDCEV 优化、零值与正发血量}
+
+\[
+\keybox{
+\begin{aligned}
+\max_{R,\mathbf Y}\quad
+&256\log(R/256)
++\sum_{i\in A_t}\gamma_i\phi_{it}
+\log\left(1+\frac{Y_i}{\gamma_i}\right)\\
+\mathrm{s.t.}\quad
+&R+\sum_{i\in A_t}Y_i=I_t,\qquad
+R>0,\qquad 0\le Y_i\le u_i .
+\end{aligned}}
+\]
+其唯一解由共同影子价格 $\lambda_t$ 决定：
+\[
+\keybox{
+Y_i(\lambda_t)=
+\min\left\{u_i,\gamma_i\left(\frac{\phi_{it}}{\lambda_t}-1\right)_+\right\}},
+\qquad
+\keybox{\frac{256}{\lambda_t}+\sum_iY_i(\lambda_t)=I_t},
+\qquad
+\keybox{D_t=\sum_{i\in A_t}Y_{it}}.
+\]
+\note{零值与正量}{$(\cdot)_+$ 同时内生决定“发或不发”；一旦发血，正量仍受申请上限 $u_i$ 与全局稀缺度约束。}
+
+\stage{两类交互}{DAT 架构对应的真实运营渠道}
+
+\[
+\{u_j,r_j,Hb_j\}_{j\in A_t}
+\longrightarrow \lambda_t
+\longrightarrow Y_{it}
+\qquad\text{\bfseries 患者-患者交互},
+\]
+\[
+(c_{p,t},c_{e,t})\times(\ell_i,r_i)
+\longrightarrow \phi_{it}
+\qquad\text{\bfseries 日级状态-患者交互},
+\]
+\[
+I_t\longrightarrow\lambda_t\longrightarrow\{Y_{it}\}_{i\in A_t}
+\qquad\text{\bfseries 资源稀缺渠道}.
+\]
+\note{结构含义}{共同 $\lambda_t$ 使任一患者的发血量依赖全部患者画像和容量；$c_p\ell_i,c_er_i$ 是显式交叉项，库存再通过影子价格同时改变所有分配。}
+
+\stage{识别与校准}{哪些来自真实数据，哪些是冻结结构}
+
+\softbox{
+\begin{minipage}{0.96\linewidth}
+\begin{itemize}
+\item $G=256$：医院 MDCEV 与血液中心决策共用的业务目标；$\kappa=1$：效用尺度归一化。
+\item $(.43,-.956)$：对齐总需求矩。目标
+$(\mathbb ED,\operatorname{SD}D,Q_{.9})=(20.6227,10.2746,34.0)$；
+20,000 日独立审计为 $(20.6380,10.2871,34.3885)$。
+\item 八特征边际与日级依赖来自经验校准；其余斜率为透明、冻结的结构参数，不宣称完整结构 MLE。
+\item 血液中心只用 $(A_t^-,X_t)$ 预测 $D_t$ 的 0.9 条件分位数；
+$A_t^+,N_t^+,\eta_t,\epsilon_{it},Y_{it},D_t$ 在决策时不可见，且 $q_t$ 不反向影响需求。
+\end{itemize}
+\end{minipage}}
+
+\end{document}

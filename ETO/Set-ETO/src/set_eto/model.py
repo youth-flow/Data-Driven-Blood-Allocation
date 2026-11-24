@@ -21,7 +21,7 @@ def _mlp(input_dim: int, hidden_dims: list[int], output_dim: int, dropout: float
 
 
 class DeepSetsDistribution(nn.Module):
-    """Pure DeepSets model: patient phi, sum pooling, day fusion, distribution head."""
+    """Pure DeepSets model: patient phi, mean pooling, day fusion, distribution head."""
 
     def __init__(self, order_num_dim, day_dim, category_cardinalities, config, distribution):
         super().__init__()

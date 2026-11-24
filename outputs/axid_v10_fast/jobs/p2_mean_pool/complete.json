@@ -1,0 +1,12 @@
+{
+  "complete": true,
+  "signature": "c72baee1e9a5a799fc7eb0d0cf9eb26f8be0959bf52c3cc23a06e8af1a7167a6",
+  "result": "attempt_0000\\result.json",
+  "artifacts": {
+    "attempt_0000\\artifact.pt": "ba3d1100db283357ceaafcd7abbcc6014924edd844e20b6594e1c98f56c4d0c3",
+    "attempt_0000\\fit_result.json": "6fa2c5aa8ec2721e0158e701f14885c98566cdd9eb70b2fbd63b036b3c6786f0",
+    "attempt_0000\\prediction.npy": "71a6e5b3bf09f1b455670c8321dcdf997bc4eaa28cbcb9163994aebbac20e2a8",
+    "attempt_0000\\result.json": "0332de1b02a4b60101295b90cc02d530bc42cdd1cb21d838ab3134eb5917c971",
+    "attempt_0000\\signature.json": "ba738bb7ba1bde5abe3c63c18b21a189075ab6958c5afbf1251d420afdc71863"
+  }
+}

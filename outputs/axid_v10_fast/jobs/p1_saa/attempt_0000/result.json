@@ -1,0 +1,11 @@
+{
+  "name": "p1_saa",
+  "method": "SAA",
+  "variant": "full",
+  "information": "",
+  "n_test": 10000,
+  "prediction_min": 34.38153076171875,
+  "prediction_max": 34.38153076171875,
+  "fit_duration_seconds": 0.9197308000002522,
+  "duration_seconds": 1.054635500000586
+}

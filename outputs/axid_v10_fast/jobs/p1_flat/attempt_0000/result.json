@@ -1,0 +1,11 @@
+{
+  "name": "p1_flat",
+  "method": "Flat",
+  "variant": "full",
+  "information": "",
+  "n_test": 10000,
+  "prediction_min": 1.4929583072662354,
+  "prediction_max": 60.52040100097656,
+  "fit_duration_seconds": 11.881016999999702,
+  "duration_seconds": 11.903307799999311
+}

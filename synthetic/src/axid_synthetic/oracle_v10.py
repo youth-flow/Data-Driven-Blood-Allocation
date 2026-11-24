@@ -34,8 +34,8 @@ class ObservedState:
             raise ValueError("old_patients must have shape [N_minus, 3] with N_minus >= 1")
         if not np.isfinite(patients).all():
             raise ValueError("old patient features must be finite")
-        if (patients[:, 0] < 0).any() or (patients[:, 0] > 10).any():
-            raise ValueError("patient application amount must lie in [0, 10]")
+        if (patients[:, 0] < 1).any() or (patients[:, 0] > 10).any():
+            raise ValueError("patient application amount must lie in [1, 10]")
         if (patients[:, 1] < 0).any() or (patients[:, 1] > 1).any():
             raise ValueError("patient risk must lie in [0, 1]")
         if (patients[:, 2] < 42).any() or (patients[:, 2] > 170).any():
@@ -43,8 +43,8 @@ class ObservedState:
         scalar = np.asarray([self.cp, self.ce, self.inventory], dtype=float)
         if not np.isfinite(scalar).all() or not 0 <= self.cp <= 1 or not 0 <= self.ce <= 1:
             raise ValueError("cp and ce must be finite values in [0, 1]")
-        if not 40 <= self.inventory <= 519:
-            raise ValueError("inventory must lie in the frozen [40, 519] support")
+        if not 0 < self.inventory <= 520:
+            raise ValueError("inventory must lie in the frozen (0, 520] support")
         patients.setflags(write=False)
         object.__setattr__(self, "old_patients", patients)
         object.__setattr__(self, "cp", float(self.cp))

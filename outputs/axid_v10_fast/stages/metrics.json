@@ -1,0 +1,8 @@
+{
+  "stage": "metrics",
+  "complete": true,
+  "configurations": 17,
+  "n_test": 10000,
+  "bootstrap_replications": 2000,
+  "oracle_paths": 4096
+}

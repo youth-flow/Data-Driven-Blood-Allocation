@@ -1,0 +1,11 @@
+{
+  "name": "p1_gbqr",
+  "method": "GBQR",
+  "variant": "full",
+  "information": "",
+  "n_test": 10000,
+  "prediction_min": 5.587363639875665,
+  "prediction_max": 76.04600317175024,
+  "fit_duration_seconds": 4.607481099999859,
+  "duration_seconds": 4.636540100000275
+}

@@ -26,25 +26,44 @@ sampling:
     - n_visible_scaled
     - sum_u_scaled
     - sum_r_scaled
-    - sum_hb_shortage_scaled
+    - sum_hb_scaled
   order_dimension: 3
   day_dimension: 7
   max_visible_orders: 138
-  max_new_orders: 76
+  max_new_orders: 73
   visible_set_nonempty: true
   demand_lower: 0.0
-  demand_upper: 519.0
+  demand_upper: 520.0
   fixed_clinical_scaling: true
   patient_scaling:
     u: u / 10
     r: r
     hb: (hb - 42) / 128
   day_scaling:
-    inventory: (inventory - 40) / 479
+    inventory: inventory / 520
     n_visible: n_visible / 138
     sum_u: sum(u) / 1380
     sum_r: sum(r) / 138
-    sum_hb_shortage: sum((170 - hb) / 128) / 138
+    sum_hb: sum((hb - 42) / 128) / 138
+  tabular_summary:
+    dimension: 16
+    columns:
+      - c_p
+      - c_e
+      - inventory_scaled
+      - n_visible_scaled
+      - sum_u_scaled
+      - sum_r_scaled
+      - sum_hb_scaled
+      - mean_u_r
+      - mean_u_hb
+      - mean_r_hb
+      - u_min
+      - u_max
+      - r_min
+      - r_max
+      - hb_min
+      - hb_max
 
 dat:
   expected_parameter_count: 51105
@@ -64,7 +83,7 @@ dat:
   positional_encoding: false
   patient_ffn: false
   output_norm: false
-  output_clip: [0.0, 519.0]
+  output_clip: [0.0, 520.0]
   loss: pinball
   constructive_width_claim_for_M138: false
 
@@ -95,6 +114,7 @@ performance_experiments:
   taus: [0.9]
   targets: [256.0]
   model_seeds: [2026111404]
+  shared_neural_schedule_methods: [DAT, Set-ETO, DeepQR]
   seeds:
     dgp_train: 2026111401
     dgp_test: 2026111402
@@ -107,6 +127,16 @@ performance_experiments:
     levels: [L0, L1, L2, L3]
     full_reuse_id: DAT-Full-L3
     dummy_token_prevents_count_leakage: true
+    day_gates:
+      L0: [1, 1, 1, 0, 0, 0, 0]
+      L1: [1, 1, 1, 1, 1, 0, 0]
+      L2: [1, 1, 1, 1, 1, 1, 1]
+      L3: [1, 1, 1, 1, 1, 1, 1]
+    patient_tokens:
+      L0: fixed_dummy
+      L1: fixed_dummy
+      L2: fixed_dummy
+      L3: full_visible_set
   p2_ablation:
     variants: [full, no_self_attention, no_day_query, mean_pool, sum_pool]
     full_reuse_id: DAT-Full-L3
@@ -164,8 +194,9 @@ implementation_gates:
   - v10_files_do_not_overwrite_v8
   - one_shared_G_256
   - three_patient_features_seven_day_features
-  - max_visible_138_max_new_76
-  - demand_support_0_519
+  - max_visible_138_max_new_73
+  - demand_support_0_520
+  - direct_hb_no_shortage_input
   - one_train_pool_one_test_pool_no_validation
   - batch128_steps4096_train524288_test10000
   - p3_four_p2_five_p1_eight

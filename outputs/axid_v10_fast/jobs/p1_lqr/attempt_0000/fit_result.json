@@ -1,0 +1,15 @@
+{
+  "epochs": 0,
+  "alpha": 0.001,
+  "solver": "torch_lbfgs",
+  "max_iter": 120,
+  "diagnostics": [
+    {
+      "tau": 0.9,
+      "objective": 1.3178235292434692,
+      "gradient_inf": 0.001543224323540926,
+      "iterations": 68,
+      "function_evaluations": 113
+    }
+  ]
+}

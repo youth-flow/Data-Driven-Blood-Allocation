@@ -1,0 +1,11 @@
+{
+  "name": "p2_no_day_query",
+  "method": "DAT",
+  "variant": "no_day_query",
+  "information": "",
+  "n_test": 10000,
+  "prediction_min": 1.3537330627441406,
+  "prediction_max": 70.83209228515625,
+  "fit_duration_seconds": 45.84183370000028,
+  "duration_seconds": 45.85988490000091
+}

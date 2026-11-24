@@ -1,0 +1,10 @@
+{
+  "epochs": 0,
+  "parameters": {
+    "n_estimators": 128,
+    "min_samples_leaf": 128,
+    "max_features": 0.75,
+    "max_depth": 16,
+    "max_samples": 0.5
+  }
+}

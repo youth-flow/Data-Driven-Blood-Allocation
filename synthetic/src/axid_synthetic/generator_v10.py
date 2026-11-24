@@ -24,7 +24,7 @@ DAY = [
     "n_registered",
     "request_use_sum",
     "risk_sum",
-    "hb_shortage_sum",
+    "hb_sum",
 ]
 PSI_COLUMNS = [
     "psi_ur",
@@ -41,41 +41,53 @@ PSI_COLUMNS = [
 TARGET_INVENTORY = 256.0
 KAPPA = 1.0
 DOSE_CAP = 10.0
-INVENTORY_LOWER = 40.0
-INVENTORY_UPPER = 519.0
+INVENTORY_LOWER = 0.0
+INVENTORY_UPPER = 520.0
 DEMAND_UPPER = INVENTORY_UPPER
 MAX_VISIBLE_ORDERS = 138
-MAX_NEW_ORDERS = 76
+MAX_NEW_ORDERS = 73
 
-N_OLD_R, N_OLD_P = 6.92, 0.106
-N_NEW_R, N_NEW_P = 4.91, 0.146
+N_OLD_R, N_OLD_P = 6.704872412573668, 0.10530530406692609
+N_NEW_R, N_NEW_P = 4.676776468869735, 0.14289110003578717
 COPULA_ORDER = ("n_old", "n_new", "inventory", "planned_load", "emergency_load")
 COPULA_CORRELATION = np.array(
     [
-        [1.000, 0.206, -0.229, 0.302, 0.217],
-        [0.206, 1.000, -0.132, 0.004, 0.139],
-        [-0.229, -0.132, 1.000, 0.129, -0.305],
-        [0.302, 0.004, 0.129, 1.000, 0.564],
-        [0.217, 0.139, -0.305, 0.564, 1.000],
+        [1.000, 0.220, -0.194, 0.891, 0.520],
+        [0.220, 1.000, -0.112, 0.147, 0.268],
+        [-0.194, -0.112, 1.000, -0.048, -0.439],
+        [0.891, 0.147, -0.048, 1.000, 0.240],
+        [0.520, 0.268, -0.439, 0.240, 1.000],
     ],
     dtype=float,
 )
 
-U_VALUES = np.array([0, 1, 2, 3, 4, 5, 6, 8, 10], dtype=float)
-U_PROBABILITIES = np.array([0.165, 0.005, 0.381, 0.030, 0.388, 0.002, 0.017, 0.003, 0.009])
-OLD_TIER_WEIGHTS = np.array([0.73, 0.07, 0.20])
-NEW_TIER_WEIGHTS = np.array([0.35, 0.10, 0.55])
-RISK_BETA = ((2.0, 8.0), (5.0, 5.0), (8.0, 2.0))
-HB_COMPONENT_WEIGHTS = ((0.23, 0.77), (0.75, 0.25), (0.82, 0.18))
-HB_COMPONENT_MEANS = ((103.0, 138.0), (61.0, 111.0), (59.0, 108.0))
-HB_COMPONENT_SDS = ((24.0, 15.0), (9.0, 25.0), (9.0, 27.0))
+U_VALUES = np.array([1, 2, 3, 4, 5, 6, 8, 10], dtype=float)
+# Three zero/missing records are assigned to the minimum positive request;
+# the 17 sparse 7/9-unit records are pooled with their adjacent upper bins.
+U_PROBABILITIES = np.array([65, 11766, 4404, 33664, 200, 1423, 1227, 556], dtype=float)
+U_PROBABILITIES /= U_PROBABILITIES.sum()
+RISK_VALUES = np.arange(14, dtype=float) / 13.0
+RISK_PROBABILITIES = np.array(
+    [
+        0.295695, 0.191127, 0.149705, 0.127568, 0.012982, 0.008630, 0.065153,
+        0.052734, 0.057030, 0.018291, 0.010168, 0.008217, 0.002007, 0.000694,
+    ],
+    dtype=float,
+)
+RISK_PROBABILITIES /= RISK_PROBABILITIES.sum()
+HB_COMPONENT_WEIGHTS = ((0.201, 0.799), (0.764, 0.236), (0.831, 0.169))
+HB_COMPONENT_MEANS = ((79.8, 135.6), (59.8, 110.2), (57.8, 101.1))
+HB_COMPONENT_SDS = ((21.0, 16.0), (9.4, 26.0), (8.4, 27.2))
 HB_LOWER, HB_UPPER = 42.0, 170.0
+HB_IMPUTATION, HB_MISSING_PROBABILITY = 122.0, 803.0 / 53305.0
 
-INVENTORY_WEIGHTS = np.array([0.39, 0.61])
-INVENTORY_MEANS = np.array([231.0, 301.0])
-INVENTORY_SDS = np.array([57.0, 44.0])
-LOG_PHI_INTERCEPT = -1.78
-GAMMA_SCALE = 0.7
+INVENTORY_WEIGHTS = np.array([0.472753, 0.527247])
+INVENTORY_MEANS = np.array([246.70438, 314.7556])
+INVENTORY_SDS = np.array([37.565011, 38.24376])
+LOG_PHI_INTERCEPT = -0.956
+GAMMA_SCALE = 0.43
+PLANNED_BETA = (6.60, 1.41)
+EMERGENCY_BETA = (2.95, 2.05)
 
 
 def _unit(value):
@@ -124,8 +136,8 @@ def draw_daily_context(rng, size=None):
     n_old = np.clip(old_raw, 1, MAX_VISIBLE_ORDERS)
     n_new = np.clip(new_raw, 0, MAX_NEW_ORDERS)
     inventory = inventory_ppf(p[..., 2])
-    cp = beta_dist.ppf(p[..., 3], 6.7, 1.4)
-    ce = beta_dist.ppf(p[..., 4], 2.85, 1.81)
+    cp = beta_dist.ppf(p[..., 3], *PLANNED_BETA)
+    ce = beta_dist.ppf(p[..., 4], *EMERGENCY_BETA)
     if size is None:
         return int(n_old), int(n_new), float(inventory), float(cp), float(ce)
     return n_old, n_new, inventory, cp, ce
@@ -138,16 +150,14 @@ def draw_profiles(rng, count, cohort):
         raise ValueError("cohort must be old/new and count must be nonnegative")
     if count == 0:
         return np.empty((0, 3), dtype=float)
-    tier_weights = OLD_TIER_WEIGHTS if cohort == "old" else NEW_TIER_WEIGHTS
-    tier = rng.choice(3, size=count, p=tier_weights)
     application = rng.choice(U_VALUES, size=count, p=U_PROBABILITIES)
-    risk = np.empty(count)
+    risk = rng.choice(RISK_VALUES, size=count, p=RISK_PROBABILITIES)
     hb = np.empty(count)
+    tier = np.where(risk < 0.25, 0, np.where(risk < 0.55, 1, 2))
     for level in range(3):
         selected = np.flatnonzero(tier == level)
         if not len(selected):
             continue
-        risk[selected] = rng.beta(*RISK_BETA[level], size=len(selected))
         component = rng.choice(2, size=len(selected), p=HB_COMPONENT_WEIGHTS[level])
         for mixture in range(2):
             positions = selected[component == mixture]
@@ -160,6 +170,8 @@ def draw_profiles(rng, count, cohort):
                 HB_LOWER,
                 HB_UPPER,
             )
+    missing = rng.random(count) < HB_MISSING_PROBABILITY
+    hb[missing] = HB_IMPUTATION
     return np.column_stack([application, risk, hb])
 
 
@@ -189,9 +201,15 @@ def mdcev_allocate(gamma, phi, inventory, target=TARGET_INVENTORY, cap=DOSE_CAP,
     """Solve the unique joint allocation through its scalar KKT equation."""
     gamma, phi = np.asarray(gamma, dtype=float), np.asarray(phi, dtype=float)
     inventory = float(inventory)
+    cap = np.broadcast_to(np.asarray(cap, dtype=float), gamma.shape)
     if gamma.shape != phi.shape or gamma.ndim != 1 or not len(gamma):
         raise ValueError("gamma and phi must be matching nonempty vectors")
-    if (gamma <= 0).any() or (phi <= 0).any() or not INVENTORY_LOWER <= inventory <= INVENTORY_UPPER:
+    if (
+        (gamma <= 0).any()
+        or (phi <= 0).any()
+        or (cap < 0).any()
+        or not INVENTORY_LOWER < inventory <= INVENTORY_UPPER
+    ):
         raise ValueError("invalid positive MDCEV inputs")
 
     def dose(multiplier):
@@ -220,7 +238,7 @@ def doctor_allocate(patients, cp, ce, inventory, rng):
     eta = float(rng.normal(0.0, 0.08))
     epsilon = rng.gumbel(-0.12 * np.euler_gamma, 0.12, size=len(patients))
     gamma, phi, ell, deficit = mechanism_parameters(patients, cp, ce, eta, epsilon)
-    doses, reserve, multiplier = mdcev_allocate(gamma, phi, inventory)
+    doses, reserve, multiplier = mdcev_allocate(gamma, phi, inventory, cap=patients[:, 0])
     return {
         "Y": doses,
         "R": reserve,
@@ -284,7 +302,11 @@ def conditional_new_counts(rng, observed_n_old, cp, ce, inventory, size):
     if size <= 0:
         raise ValueError("size must be positive")
     p_observed = _unit(
-        [inventory_cdf(inventory), beta_dist.cdf(cp, 6.7, 1.4), beta_dist.cdf(ce, 2.85, 1.81)]
+        [
+            inventory_cdf(inventory),
+            beta_dist.cdf(cp, *PLANNED_BETA),
+            beta_dist.cdf(ce, *EMERGENCY_BETA),
+        ]
     )
     z_observed = norm.ppf(p_observed)
     targets, observed = np.array([0, 1]), np.array([2, 3, 4])
@@ -310,34 +332,44 @@ def conditional_new_counts(rng, observed_n_old, cp, ce, inventory, size):
     return np.clip(raw, 0, MAX_NEW_ORDERS)
 
 
-def mdcev_demand_batch(gamma, phi, valid, inventory, target=TARGET_INVENTORY, cap=DOSE_CAP, iterations=48):
-    """Vectorised KKT solve for a batch of independently padded patient sets."""
+def mdcev_allocate_batch(gamma, phi, valid, inventory, target=TARGET_INVENTORY, cap=DOSE_CAP, iterations=48):
+    """Vectorised KKT allocation for independently padded patient sets."""
     gamma, phi, valid = np.asarray(gamma), np.asarray(phi), np.asarray(valid, dtype=bool)
     if gamma.shape != phi.shape or gamma.shape != valid.shape or gamma.ndim != 2:
         raise ValueError("batched gamma, phi and mask must have the same 2-D shape")
     inventory = np.broadcast_to(np.asarray(inventory, dtype=float), (len(gamma),))
-    if (inventory < INVENTORY_LOWER).any() or (inventory > INVENTORY_UPPER).any():
+    cap = np.broadcast_to(np.asarray(cap, dtype=float), gamma.shape)
+    if (inventory <= INVENTORY_LOWER).any() or (inventory > INVENTORY_UPPER).any() or (cap < 0).any():
         raise ValueError("batched inventory is outside the v10 support")
 
-    def total_dose(multiplier):
+    def dose(multiplier):
         raw = gamma * np.maximum(phi / multiplier[:, None] - 1.0, 0.0)
-        return np.where(valid, np.minimum(cap, raw), 0.0).sum(axis=1)
+        return np.where(valid, np.minimum(cap, raw), 0.0)
 
     low = target / inventory
     masked_phi = np.where(valid, phi, 0.0)
     high = np.maximum(low, masked_phi.max(axis=1))
     for _ in range(iterations):
         middle = 0.5 * (low + high)
-        resource = target / middle + total_dose(middle)
+        resource = target / middle + dose(middle).sum(axis=1)
         above = resource > inventory
         low = np.where(above, middle, low)
         high = np.where(above, high, middle)
     multiplier = 0.5 * (low + high)
-    demand = total_dose(multiplier)
+    doses = dose(multiplier)
+    demand = doses.sum(axis=1)
     residual = target / multiplier + demand - inventory
     if np.max(np.abs(residual)) > 3e-6:
         raise RuntimeError("batched MDCEV solver failed its resource equation")
-    return demand
+    return doses, target / multiplier, multiplier
+
+
+def mdcev_demand_batch(gamma, phi, valid, inventory, target=TARGET_INVENTORY, cap=DOSE_CAP, iterations=48):
+    """Return total issue demand from the vectorised KKT allocation."""
+    doses, _, _ = mdcev_allocate_batch(
+        gamma, phi, valid, inventory, target=target, cap=cap, iterations=iterations
+    )
+    return doses.sum(axis=1)
 
 
 def _conditional_demand_batch(old_patients, cp, ce, inventory, counts, rng):
@@ -364,7 +396,7 @@ def _conditional_demand_batch(old_patients, cp, ce, inventory, counts, rng):
         LOG_PHI_INTERCEPT + 0.15 * ell + 1.20 * risk + 0.45 * deficit
         + 0.40 * float(cp) * ell + 0.60 * float(ce) * risk + eta + epsilon
     )
-    return mdcev_demand_batch(gamma, np.exp(log_phi), valid, inventory)
+    return mdcev_demand_batch(gamma, np.exp(log_phi), valid, inventory, cap=application)
 
 
 def simulate_conditional_demand(
@@ -392,7 +424,7 @@ def simulate_conditional_demand(
 
 def patient_summaries(old):
     """Return authorized X summaries and the nine extra 16-D Psi statistics."""
-    normalized = np.column_stack([old[:, 0] / 10.0, old[:, 1], (HB_UPPER - old[:, 2]) / 128.0])
+    normalized = np.column_stack([old[:, 0] / 10.0, old[:, 1], (old[:, 2] - HB_LOWER) / 128.0])
     cross = [
         np.mean(normalized[:, 0] * normalized[:, 1]),
         np.mean(normalized[:, 0] * normalized[:, 2]),
@@ -409,7 +441,7 @@ def patient_summaries(old):
     return {
         "request_use_sum": float(old[:, 0].sum()),
         "risk_sum": float(old[:, 1].sum()),
-        "hb_shortage_sum": float(normalized[:, 2].sum()),
+        "hb_sum": float(normalized[:, 2].sum()),
         **dict(zip(PSI_COLUMNS, [*cross, *extrema])),
     }
 
@@ -427,9 +459,9 @@ def fixed_scalers():
             "n_registered": {"mean": 0.0, "std": float(MAX_VISIBLE_ORDERS)},
             "request_use_sum": {"mean": 0.0, "std": 10.0 * MAX_VISIBLE_ORDERS},
             "risk_sum": {"mean": 0.0, "std": float(MAX_VISIBLE_ORDERS)},
-            "hb_shortage_sum": {"mean": 0.0, "std": float(MAX_VISIBLE_ORDERS)},
+            "hb_sum": {"mean": 0.0, "std": float(MAX_VISIBLE_ORDERS)},
         },
-        "inventory": {"It": {"mean": INVENTORY_LOWER, "std": 479.0}},
+        "inventory": {"It": {"mean": 0.0, "std": INVENTORY_UPPER}},
     }
 
 
@@ -459,7 +491,7 @@ def schema(config):
         "information_groups": {
             "day_context": ["planned_load", "emergency_load"],
             "day_basic": ["n_registered", "request_use_sum"],
-            "day_clinical": ["risk_sum", "hb_shortage_sum"],
+            "day_clinical": ["risk_sum", "hb_sum"],
             "order_basic_num": ORDER_NUM,
             "order_basic_cat": [],
         },
@@ -489,7 +521,7 @@ def _save_json(path, value):
 def _empty_daily(total):
     float_fields = [
         "D", "D_new", "known_recent_D", "It", "planned_load", "emergency_load",
-        "request_use_sum", "risk_sum", "hb_shortage_sum", *PSI_COLUMNS,
+        "request_use_sum", "risk_sum", "hb_sum", *PSI_COLUMNS,
     ]
     daily = {name: np.empty(total, dtype=np.float32) for name in float_fields}
     daily.update(
@@ -531,13 +563,72 @@ def _write_compat_csv(folder, daily, patients, labels, offsets):
     pd.concat(rows, ignore_index=True).to_csv(folder / "data.csv", index=False)
 
 
+def _generate_chunk(rng, start, stop, contexts, offsets, patients_out, labels_out, daily):
+    """Generate one vectorised block and write it directly to the compact arrays."""
+    n_old, n_new, inventory, cp, ce = (np.asarray(value[start:stop]) for value in contexts)
+    counts = n_old + n_new
+    rows, width = len(counts), int(counts.max())
+    positions = np.arange(width)[None, :]
+    valid = positions < counts[:, None]
+    old_valid = positions < n_old[:, None]
+    profiles = np.zeros((rows, width, 3), dtype=float)
+    profiles[valid] = draw_profiles(rng, int(counts.sum()), "old")
+    application, risk, hb = np.moveaxis(profiles, -1, 0)
+    ell = np.log1p(application) / np.log(11.0)
+    deficit = np.minimum(4.0, np.maximum((70.0 + 10.0 * risk - hb) / 10.0, 0.0))
+    gamma = GAMMA_SCALE * (0.5 + 1.5 * ell)
+    eta = rng.normal(0.0, 0.08, size=(rows, 1))
+    epsilon = rng.gumbel(-0.12 * np.euler_gamma, 0.12, size=(rows, width))
+    log_phi = (
+        LOG_PHI_INTERCEPT + 0.15 * ell + 1.20 * risk + 0.45 * deficit
+        + 0.40 * cp[:, None] * ell + 0.60 * ce[:, None] * risk + eta + epsilon
+    )
+    doses, _, _ = mdcev_allocate_batch(
+        gamma, np.exp(log_phi), valid, inventory, cap=application
+    )
+
+    left, right = int(offsets[start]), int(offsets[stop])
+    patients_out[left:right] = profiles[old_valid].astype(np.float32)
+    labels_out[left:right] = doses[old_valid].astype(np.float32)
+    demand = doses.sum(axis=1)
+    known = np.where(old_valid, doses, 0.0).sum(axis=1)
+    normalized = np.stack([application / 10.0, risk, (hb - HB_LOWER) / 128.0], axis=-1)
+    old_float = old_valid.astype(float)
+    old_count = n_old.astype(float)
+    cross = (
+        normalized[:, :, (0, 0, 1)] * normalized[:, :, (1, 2, 2)]
+    )
+    cross_mean = (cross * old_float[:, :, None]).sum(axis=1) / old_count[:, None]
+    minima = np.where(old_valid[:, :, None], normalized, np.inf).min(axis=1)
+    maxima = np.where(old_valid[:, :, None], normalized, -np.inf).max(axis=1)
+    psi = np.column_stack(
+        [cross_mean, minima[:, 0], maxima[:, 0], minima[:, 1], maxima[:, 1], minima[:, 2], maxima[:, 2]]
+    )
+    values = {
+        "D": demand,
+        "D_new": demand - known,
+        "known_recent_D": known,
+        "It": inventory,
+        "planned_load": cp,
+        "emergency_load": ce,
+        "request_use_sum": np.where(old_valid, application, 0.0).sum(axis=1),
+        "risk_sum": np.where(old_valid, risk, 0.0).sum(axis=1),
+        "hb_sum": np.where(old_valid, normalized[:, :, 2], 0.0).sum(axis=1),
+        **{name: psi[:, j] for j, name in enumerate(PSI_COLUMNS)},
+    }
+    for name, value in values.items():
+        daily[name][start:stop] = value
+    daily["n_orders"][start:stop] = n_old
+    daily["n_registered"][start:stop] = n_old
+
+
 def generate_performance(config, output):
     """Generate compact CSR-like artifacts without per-day Python objects."""
     config = dict(config)
     if config.get("schema_version") not in {10, "10"} or config.get("generator_version") not in {10, "10"}:
         raise ValueError("v10 reference must declare schema/generator version 10")
     if int(config["max_visible_orders"]) != MAX_VISIBLE_ORDERS or int(config["max_new_orders"]) != MAX_NEW_ORDERS:
-        raise ValueError("v10 count supports are fixed at 138 and 76")
+        raise ValueError("v10 count supports are fixed at 138 and 73")
     if float(config.get("target_inventory", TARGET_INVENTORY)) != TARGET_INVENTORY:
         raise ValueError("v10 uses the single common G=256")
     if float(config.get("gamma_scale", GAMMA_SCALE)) != GAMMA_SCALE or float(
@@ -576,22 +667,11 @@ def generate_performance(config, output):
     daily["decision_day"][n_train:] = n_train + 30 + np.arange(n_test)
     daily["split"][:n_train] = 0
     daily["split"][n_train:] = 1
-    for index in range(total):
-        rng = train_rng if index < n_train else test_rng
-        sample = sample_given_context(rng, n_old[index], n_new[index], inventory[index], cp[index], ce[index])
-        start, stop = int(offsets[index]), int(offsets[index + 1])
-        patients[start:stop] = sample["old"].astype(np.float32)
-        labels[start:stop] = sample["old_y"].astype(np.float32)
-        summaries = patient_summaries(sample["old"])
-        values = {
-            "D": sample["demand"], "D_new": sample["demand_new"],
-            "known_recent_D": sample["known"], "It": sample["inventory"],
-            "planned_load": sample["cp"], "emergency_load": sample["ce"], **summaries,
-        }
-        for name, value in values.items():
-            daily[name][index] = value
-        daily["n_orders"][index] = sample["n_old"]
-        daily["n_registered"][index] = sample["n_old"]
+    chunk_days = max(1, int(config.get("generation_chunk_days", 2048)))
+    for split_start, split_stop, rng in ((0, n_train, train_rng), (n_train, total, test_rng)):
+        for start in range(split_start, split_stop, chunk_days):
+            stop = min(split_stop, start + chunk_days)
+            _generate_chunk(rng, start, stop, contexts, offsets, patients, labels, daily)
     patients.flush()
     labels.flush()
     np.save(output / "patient_offsets.npy", offsets, allow_pickle=False)

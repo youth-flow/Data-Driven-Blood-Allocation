@@ -43,18 +43,101 @@ SCRIPTS = {
     "scripts/run_synthetic_experiments.py",
     "scripts/run_v10_experiment.py",
 }
-SOURCE_EXTENSIONS = {".py", ".md", ".yaml", ".yml", ".toml", ".sh"}
+SOURCE_EXTENSIONS = {".py", ".md", ".yaml", ".yml", ".toml", ".sh", ".tex"}
 PRIVATE_PARTS = {"__pycache__", "outputs", "results", "artifacts", "checkpoints", "generated", ".git"}
+V10_RELEASE_PDF = "数值实验方案/v10/05_AXID_DC_v10_Empirically_Calibrated_DGP.pdf"
+V10_RESULT_PREFIX = "outputs/axid_v10_fast/"
+V10_RESULT_ROOT_FILES = {
+    "README.md",
+    "bootstrap_intervals.csv",
+    "daily_metric_arrays.npz",
+    "daily_metric_names.json",
+    "final_metrics.csv",
+}
+V10_RESULT_DATASET_FILES = {
+    "data_feature_schema.json",
+    "generation.yaml",
+    "manifest.json",
+    "preprocessing_state.json",
+    "split_manifest.json",
+}
+V10_RESULT_ORACLE_FILES = {
+    "block_quantiles.npy",
+    "manifest.json",
+    "prediction.npy",
+    "stability.json",
+}
+V10_RESULT_STAGE_FILES = {"data.json", "metrics.json", "p1.json", "p2.json", "p3.json"}
+V10_RESULT_JOBS = {
+    "p1_deepqr",
+    "p1_flat",
+    "p1_gbqr",
+    "p1_lqr",
+    "p1_saa",
+    "p1_set_eto",
+    "p1_wsaa",
+    "p2_mean_pool",
+    "p2_no_day_query",
+    "p2_no_self_attention",
+    "p2_sum_pool",
+    "p3_L0",
+    "p3_L1",
+    "p3_L2",
+    "p3_L3",
+}
+V10_RESULT_ATTEMPT_FILES = {
+    "fit_result.json",
+    "prediction.npy",
+    "result.json",
+    "signature.json",
+}
 SECRET_PATTERN = re.compile(
     rb"gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|sk-[A-Za-z0-9_-]{35,}"
     rb"|-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----"
 )
 
 
+def audited_v10_result(path):
+    if not path.startswith(V10_RESULT_PREFIX):
+        return False
+    relative = PurePosixPath(path.removeprefix(V10_RESULT_PREFIX))
+    parts = relative.parts
+    if len(parts) == 1:
+        return parts[0] in V10_RESULT_ROOT_FILES
+    if len(parts) == 2 and parts[0] == "dataset":
+        return parts[1] in V10_RESULT_DATASET_FILES
+    if len(parts) == 2 and parts[0] == "oracle":
+        return parts[1] in V10_RESULT_ORACLE_FILES
+    if len(parts) == 2 and parts[0] == "stages":
+        return parts[1] in V10_RESULT_STAGE_FILES
+    if len(parts) == 3 and parts[0] == "jobs" and parts[1] in V10_RESULT_JOBS:
+        return parts[2] == "complete.json"
+    if (
+        len(parts) == 4
+        and parts[0] == "jobs"
+        and parts[1] in V10_RESULT_JOBS
+        and parts[2] == "attempt_0000"
+    ):
+        return parts[3] in V10_RESULT_ATTEMPT_FILES
+    return False
+
+
+def audited_binary(path):
+    return (
+        path == V10_RELEASE_PDF
+        or (
+            audited_v10_result(path)
+            and PurePosixPath(path).suffix.lower() in {".npy", ".npz"}
+        )
+    )
+
+
 def allowed(path):
     p = PurePosixPath(path)
     if p.is_absolute() or ".." in p.parts or "\\" in path:
         return False
+    if path == V10_RELEASE_PDF or audited_v10_result(path):
+        return True
     if any(part.startswith((".env", ".private")) or part in PRIVATE_PARTS for part in p.parts):
         return False
     if path in ROOT_FILES or path in SCRIPTS:
@@ -68,12 +151,14 @@ def git(*args):
 
 def content_problems(label, value):
     problems = []
-    if len(value) > 2_000_000 or b"\0" in value:
+    binary_ok = audited_binary(label)
+    if len(value) > 2_000_000 or (b"\0" in value and not binary_ok):
         problems.append(f"Oversized or binary content: {label}")
-    try:
-        value.decode("utf-8")
-    except UnicodeDecodeError:
-        problems.append(f"Non-UTF-8 source content: {label}")
+    if not binary_ok:
+        try:
+            value.decode("utf-8")
+        except UnicodeDecodeError:
+            problems.append(f"Non-UTF-8 source content: {label}")
     if SECRET_PATTERN.search(value):
         problems.append(f"Possible credential/private key: {label}")
     return problems

@@ -1,0 +1,11 @@
+{
+  "name": "p1_wsaa",
+  "method": "wSAA",
+  "variant": "full",
+  "information": "",
+  "n_test": 10000,
+  "prediction_min": 7.40809440612793,
+  "prediction_max": 71.05891418457031,
+  "fit_duration_seconds": 42.01769869999771,
+  "duration_seconds": 42.188784199999645
+}

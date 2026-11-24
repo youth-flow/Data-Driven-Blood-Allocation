@@ -1,0 +1,25 @@
+{
+  "epochs": 1,
+  "selection": {
+    "tau_epochs": {
+      "0.9": 1
+    }
+  },
+  "scalar_fits": {
+    "0.9": {
+      "epochs": 1,
+      "optimizer_steps": 4096,
+      "history": [
+        {
+          "epoch": 1,
+          "training_pinball": 1.25974859012058,
+          "optimizer_steps": 4096,
+          "learning_rate": 3e-05
+        }
+      ],
+      "allocated_parameters": 51105,
+      "structurally_active_parameters": 51105
+    }
+  },
+  "training_mode": "independent_scalar_pinball"
+}

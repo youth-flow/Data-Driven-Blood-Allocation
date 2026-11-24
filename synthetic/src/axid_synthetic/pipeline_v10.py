@@ -161,19 +161,26 @@ def _runtime_config(root, folder, data_root, protocol, method, variant, informat
         "prefetch_factor": 4,
         "bucket_by_length": bool(runtime["bucket_by_visible_orders"]),
     }
+    neural_training = {
+        "learning_rate": float(experiment["peak_learning_rate"]),
+        "warmup_steps": (
+            min(int(experiment["warmup_steps"]), max(1, steps // 4))
+            if smoke
+            else int(experiment["warmup_steps"])
+        ),
+        "warmup_start_lr": float(experiment["warmup_start_learning_rate"]),
+        "minimum_lr": float(experiment["final_learning_rate"]),
+        "weight_decay": float(experiment["weight_decay"]),
+        "betas": list(experiment["betas"]),
+        "eps": float(experiment["optimizer_eps"]),
+    }
     config["model_overrides"] = {
-        "DAT": {
-            "training": {
-                "learning_rate": float(experiment["peak_learning_rate"]),
-                "warmup_steps": min(int(experiment["warmup_steps"]), max(1, steps // 4)) if smoke else int(experiment["warmup_steps"]),
-                "warmup_start_lr": float(experiment["warmup_start_learning_rate"]),
-                "minimum_lr": float(experiment["final_learning_rate"]),
-                "weight_decay": float(experiment["weight_decay"]),
-                "betas": list(experiment["betas"]),
-                "eps": float(experiment["optimizer_eps"]),
-            }
+        "DAT": {"training": neural_training},
+        "DeepQR": {
+            "training": neural_training,
+            "deep_qr": {"output_upper_bound": 520.0},
         },
-        "DeepQR": {"deep_qr": {"output_upper_bound": 519.0}},
+        "Set-ETO": {"training": neural_training},
         "wSAA": {
             "wsaa": {
                 "n_estimators": 8 if smoke else 128,

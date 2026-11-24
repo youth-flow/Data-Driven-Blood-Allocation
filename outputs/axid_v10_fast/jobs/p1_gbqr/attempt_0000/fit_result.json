@@ -1,0 +1,9 @@
+{
+  "epochs": 0,
+  "parameters": {
+    "learning_rate": 0.06,
+    "max_leaf_nodes": 15,
+    "min_samples_leaf": 20,
+    "max_iter": 200
+  }
+}

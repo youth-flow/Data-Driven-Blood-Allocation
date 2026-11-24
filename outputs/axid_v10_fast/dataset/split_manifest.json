@@ -1,0 +1,10 @@
+{
+  "train_start": 0,
+  "train_end": 524287,
+  "test_start": 524318,
+  "test_end": 534317,
+  "evaluation_role": "test",
+  "evaluation_is_retrospective": false,
+  "train_days": 524288,
+  "test_days": 10000
+}

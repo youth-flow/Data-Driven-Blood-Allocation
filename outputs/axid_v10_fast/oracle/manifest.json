@@ -1,0 +1,12 @@
+{
+  "recipe": {
+    "data_identity": "ce83de8cb9baa8a5545b1ff5b9093f5cb3cd11ee446f6d41c11522e27d5aa13b",
+    "n_test": 10000,
+    "draws": 4096,
+    "batch": 1024,
+    "tau": 0.9,
+    "seed": 2026111407,
+    "code_fingerprint": "e81eccb876ac1864648ee292f38c4b32e7d75a7910a3b29cdab76f94a9d3e882"
+  },
+  "prediction_sha256": "148df7df22ba5589ecbfe5d4cb250011572bde76ead6d08fc363f82ce922dcfa"
+}

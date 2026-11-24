@@ -1,0 +1,11 @@
+{
+  "name": "p1_deepqr",
+  "method": "DeepQR",
+  "variant": "full",
+  "information": "",
+  "n_test": 10000,
+  "prediction_min": 4.826202392578125,
+  "prediction_max": 56.02195739746094,
+  "fit_duration_seconds": 30.07465940000111,
+  "duration_seconds": 30.091813099999854
+}

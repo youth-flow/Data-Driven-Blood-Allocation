@@ -1,4 +1,4 @@
-"""Flat v7 training: patient MSE plus residual-demand MSE, no PMF/convolution."""
+"""Flat training: patient MSE plus residual-demand MSE, no PMF/convolution."""
 
 import numpy as np
 import torch
@@ -17,8 +17,11 @@ def _fit_module(module, x, y, config, seed):
         weight_decay=config["training"]["weight_decay"],
     )
     loss_function = nn.MSELoss()
-    features = torch.from_numpy(np.asarray(x, dtype=np.float32))
-    target = torch.from_numpy(np.asarray(y, dtype=np.float32))
+    # Compact v10 arrays are read-only memory maps.  Materialize the fixed
+    # training slice once before handing it to PyTorch so tensor semantics are
+    # well-defined and the formal run emits no non-writable-buffer warning.
+    features = torch.from_numpy(np.array(x, dtype=np.float32, copy=True))
+    target = torch.from_numpy(np.array(y, dtype=np.float32, copy=True))
     batch_size = int(config["training"]["batch_size"])
     max_steps = config["training"].get("max_steps")
     max_steps = int(max_steps) if max_steps is not None else None
@@ -95,12 +98,16 @@ def _predict(model, data, config):
     residual = np.clip(residual, 0.0, float(data.schema["demand_support_upper"]))
     if data.compact_format == "axid_v10_csr_v1":
         patients, _, offsets, _ = data.patient_arrays("eval")
-        patients = ((np.asarray(patients) - data.order_scaler.mean) / data.order_scaler.scale).astype(np.float32)
+        raw_patients = np.asarray(patients)
+        patients = ((raw_patients - data.order_scaler.mean) / data.order_scaler.scale).astype(np.float32)
         chunks = []
         for start in range(0, len(patients), 65536):
             tensor = torch.from_numpy(patients[start : start + 65536]).to(device_for(config))
             chunks.append(model.patient_prediction(tensor).cpu().numpy())
-        patient_prediction = np.clip(np.concatenate(chunks), 0.0, 10.0)
+        patient_prediction = np.minimum(
+            np.maximum(np.concatenate(chunks), 0.0),
+            raw_patients[:, 0],
+        )
         known = np.add.reduceat(patient_prediction, offsets[:-1])
         return np.clip(known + residual, 0.0, float(data.schema["demand_support_upper"]))[:, None]
     orders = data.order_split("eval")
@@ -113,7 +120,7 @@ def _predict(model, data, config):
         else:
             patient = frame[_patient_columns(frame)].to_numpy(np.float32)
             prediction = model.patient_prediction(torch.from_numpy(patient).to(device_for(config))).cpu().numpy()
-            known = float(np.clip(prediction, 0.0, 6.0).sum())
+            known = float(np.minimum(np.maximum(prediction, 0.0), frame["u"].to_numpy(float)).sum())
         values.append(np.clip(known + residual[index], 0.0, float(data.schema["demand_support_upper"])))
     return np.asarray(values)[:, None]
 
