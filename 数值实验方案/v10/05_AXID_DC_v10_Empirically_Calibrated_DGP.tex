@@ -72,21 +72,23 @@
 \group{患者特征}
 \begin{center}
 \fontsize{8.9}{10.7}\selectfont
+\setlength{\tabcolsep}{4pt}
 \begin{tabularx}{.99\textwidth}{
-  >{\raggedright\arraybackslash}p{27mm}
-  >{\raggedright\arraybackslash}p{105mm}
+  >{\centering\arraybackslash}p{15mm}
+  >{\raggedright\arraybackslash}p{25mm}
+  >{\raggedright\arraybackslash}p{92mm}
   X}
 \toprule
-合成量 & 真实字段与确定映射 & 模型输入 / 作用\\
+符号 & 中文定义 & 真实字段与确定映射 & 模型输入 / 作用\\
 \midrule
-$u_i$\quad\textbf{申请规模} &
+$u_i$ & \textbf{申请规模} &
 $s_i=\operatorname{coalesce}(\text{申请用血量},0)+
 \operatorname{coalesce}(\text{申请备血量},0)$；\newline
 $u_i=g(s_i)$，其中
 $0/1\mapsto1$，$2$--$6\mapsto s_i$，$7/8\mapsto8$，$\ge9\mapsto10$ &
 $u_i/10$\newline 合并稀疏尾部\\
 
-$r_i$\quad\textbf{临床风险} &
+$r_i$ & \textbf{临床风险} &
 $E=\mathbf1\{\text{急救/急诊}\}$，
 $B=\mathbf1\{\text{出血/创伤}\}$，\newline
 $C=\mathbf1\{\text{白血病/肿瘤/肝病}\}$，
@@ -94,7 +96,7 @@ $V=\mathbf1\{\text{年龄}\ge65\}$；
 $r_i=(6E+4B+2C+V)/13$ &
 输入 $r_i$\newline 仅用决策前字段\\
 
-$Hb_i$\quad\textbf{血红蛋白} &
+$Hb_i$ & \textbf{血红蛋白} &
 缺失置训练期中位数 122；非缺失值截断至 $[42,170]$ g/L &
 $(Hb_i-42)/128$\\
 \bottomrule
@@ -104,32 +106,34 @@ $(Hb_i-42)/128$\\
 \group{日级特征与两个患者数}
 \begin{center}
 \fontsize{8.9}{10.7}\selectfont
+\setlength{\tabcolsep}{4pt}
 \begin{tabularx}{.99\textwidth}{
-  >{\raggedright\arraybackslash}p{27mm}
-  >{\raggedright\arraybackslash}p{105mm}
+  >{\centering\arraybackslash}p{15mm}
+  >{\raggedright\arraybackslash}p{25mm}
+  >{\raggedright\arraybackslash}p{92mm}
   X}
 \toprule
-合成量 & 真实字段与确定映射 & 模型输入 / 信息边界\\
+符号 & 中文定义 & 真实字段与确定映射 & 模型输入 / 信息边界\\
 \midrule
-$c_{p,t}$\quad\textbf{计划压力} &
+$c_{p,t}$ & \textbf{计划压力} &
 $n_{p,t}=\#\{\mathcal A_t^-\text{ 中手术备血或病房用血患者}\}$；
 $c_{p,t}=\min\{1,\log(1+n_{p,t})/\log89\}$ &
 输入 $c_{p,t}$\\
 
-$c_{e,t}$\quad\textbf{急诊压力} &
+$c_{e,t}$ & \textbf{急诊压力} &
 $n_{e,t}=\#\{\mathcal A_t^-\text{ 中急救用血患者}\}$；
 $c_{e,t}=\min\{1,\log(1+n_{e,t})/\log41\}$ &
 输入 $c_{e,t}$\\
 
-$I_t$\quad\textbf{期初库存} &
+$I_t$ & \textbf{期初库存} &
 O 型红细胞期初可用库存 &
 输入 $I_t/520$\\
 
-$N_t^-$\quad\textbf{可见患者数} &
+$N_t^-$ & \textbf{可见患者数} &
 $N_t^-=|\mathcal A_t^-|$：决策截点前有效申请数 &
 输入 $N_t^-/138$\\
 
-$N_t^+$\quad\textbf{新增患者数} &
+$N_t^+$ & \textbf{新增患者数} &
 $N_t^+=|\mathcal A_t^+|$：决策截点后当日新增申请数 &
 仅用于需求生成\\
 \bottomrule
@@ -154,6 +158,20 @@ c_{p,t},c_{e,t},\frac{I_t}{520},\frac{N_t^-}{138},
 \frac{\sum_{i\in\mathcal A_t^-}(Hb_i-42)/128}{138}
 \right)} .
 \]
+
+\vspace{4pt}
+\noindent\colorbox{soft}{%
+\parbox{\dimexpr\linewidth-2\fboxsep\relax}{%
+\fontsize{8}{9.6}\selectfont\color{muted}
+\textbf{训练期统计锚点（2013--2019）}\par
+\begin{tabularx}{\linewidth}{
+  >{\bfseries\raggedright\arraybackslash}p{18mm}
+  >{\raggedright\arraybackslash}X}
+$Hb$ & $Q_{.01}=42$，中位数 $122$，$Q_{.99}=170$；归一化跨度 $128=170-42$。\\
+期初库存 $I$ & 均值 $282.58$，中位数 $283$，最大值 $519$；输入尺度取 $520$。\\
+患者数 & $N^-:\ \text{均值}=56.97,\ \max=138$；$N^+:\ \text{均值}=28.05,\ \max=73$。\\
+压力尺度 & $Q_{.99}(n_p)=88$，$Q_{.99}(n_e)=40$；故分母分别为 $\log89$ 与 $\log41$。\\
+\end{tabularx}}}
 
 \newpage
 
@@ -196,7 +214,7 @@ $I_t$ & $.472753\,\TN_{[0,520]}(246.704,37.565^2)
 
 \group{日级经验相关}
 \begin{center}
-\smallnote{Gaussian copula 潜在相关矩阵；行列顺序均为 $(N^-,N^+,I,c_p,c_e)$。}
+\smallnote{Gaussian copula 潜在相关矩阵；行列顺序均为 $(N^-,N^+,I,c_p,c_e)$；$\Sigma=.95\widehat\Sigma_{\rm emp}+.05I_5$。}
 \[
 \begin{array}{c|rrrrr}
  &N^-&N^+&I&c_p&c_e\\ \hline
@@ -210,6 +228,7 @@ c_e&.520& .268&-.439& .240&1
 \end{center}
 
 \group{患者离散边际}
+\smallnote{$u$ 与 $r$ 均直接取自训练期经验分布。}
 \[
 \begin{array}{c|rrrrrrrr}
 u&1&2&3&4&5&6&8&10\\ \hline
@@ -241,10 +260,9 @@ H&.831&\TN(57.8,8.4^2)&.169&\TN(101.1,27.2^2)\\
 \]
 \textbf{生成顺序：}
 先抽 $r_i$，再抽 $Hb_i^\star\sim Hb\mid r_i$ 并截断至 $[42,170]$；
-最后抽 $M_i\sim\operatorname{Bernoulli}(.01506)$，若 $M_i=1$ 则置 $Hb_i=122$，否则 $Hb_i=Hb_i^\star$。
+再按训练期经验缺失概率 $.01506$ 抽 $M_i$；缺失时以训练期中位数 122 补齐，否则 $Hb_i=Hb_i^\star$。
 
-\textbf{患者联合生成：}
-$u_i\perp(r_i,Hb_i)$；给定 $N_t^-,N_t^+$ 后，$\mathcal A_t^-$ 与 $\mathcal A_t^+$ 按同一患者画像分布独立抽取。
+\smallnote{临床阈值参考：Carson et al. (2023), \textit{Red Blood Cell Transfusion: 2023 AABB International Guidelines}, \textit{JAMA} 330(19):1892--1902。}
 \endgroup
 
 \newpage
@@ -334,16 +352,17 @@ D_t=\sum_{i\in\mathcal A_t}Y_{it}.
 \group{两类交互}
 \smallnote{库存与患者集合共同形成影子价格，再由影子价格联合决定个体发血量。}
 \[
-I_t,\ \{u_j,r_j,Hb_j\}_{j\in\mathcal A_t}
-\longrightarrow\lambda_t
+\begin{aligned}
+\{u_j,r_j,Hb_j\}_{j\in\mathcal A_t}
+&\longrightarrow
+\underset{\substack{\uparrow\\[-2pt] I_t}}{\lambda_t}
 \longrightarrow Y_{it}
-\qquad\text{\bfseries 患者-患者交互},
-\]
-\[
+&&\text{\bfseries 患者-患者交互},\\[7pt]
 (c_{p,t}\ell_i,\,c_{e,t}r_i)
-\longrightarrow\phi_{it}
+&\longrightarrow\phi_{it}
 \longrightarrow Y_{it}
-\qquad\text{\bfseries 日级状态-患者交互}.
+&&\text{\bfseries 日级状态-患者交互}.
+\end{aligned}
 \]
 
 \newpage
@@ -353,78 +372,67 @@ I_t,\ \{u_j,r_j,Hb_j\}_{j\in\mathcal A_t}
 % ============================================================================
 \pagetitle{附录：经验校准口径}
 
-\smallnote{所有经验量只使用 2013-01-01 至 2019-12-28 的训练期数据；2020 年不参与分布、尺度或目标库存的确定。}
+\smallnote{所有经验量只使用 2013-01-01 至 2019-12-28 的训练期数据；2020 年完全留作测试。}
 
-\group{边际分布：为什么这样选，数值如何得到}
+\begingroup
+\fontsize{8.05}{9.55}\selectfont
+\renewcommand{\arraystretch}{1.07}
+\setlength{\abovedisplayskip}{2pt}
+\setlength{\belowdisplayskip}{2pt}
+\renewcommand{\group}[1]{%
+  \vspace{3pt}{\fontsize{10.6}{12.2}\selectfont\bfseries #1}\par
+  \vspace{.5pt}\color{rule}\hrule height .4pt\color{ink}\vspace{1.5pt}}
+
+\group{日级五变量：为什么用这些分布}
 \begin{center}
-\fontsize{8.1}{9.7}\selectfont
+\setlength{\tabcolsep}{4pt}
 \begin{tabularx}{.99\textwidth}{
-  >{\bfseries\raggedright\arraybackslash}p{23mm}
-  >{\raggedright\arraybackslash}p{48mm}
+  >{\bfseries\centering\arraybackslash}p{14mm}
+  >{\raggedright\arraybackslash}p{60mm}
   >{\raggedright\arraybackslash}X}
 \toprule
-对象 & 分布形状的选择 & 参数来源\\
+变量 & 分布形状 & 参数怎么定\\
 \midrule
-$N^-,N^+$ &
-日计数方差显著大于均值，采用负二项保留过度离散。 &
-矩匹配 $p=m/v$、$a=m^2/(v-m)$：
-$N^-:(m,v)=(56.9659,540.9597)$；
-$N^+:(28.0529,196.3235)$。
-上界 138、73 为训练期最大值。\\
-
-$c_p,c_e$ &
-人数经 0.99 分位数对数压缩后位于 $[0,1]$，采用 Beta 描述有界偏态。 &
-$c_p$ 使用 $Q_{.99}(n_p)=88$，经验 $(m,v)=(.82449,.01607)$；
-$c_e$ 使用 $Q_{.99}(n_e)=40$，经验 $(m,v)=(.58987,.04033)$。
-以 Beta 矩公式得到 $(6.60,1.41)$、$(2.95,2.05)$。\\
-
-$I$ &
-单一正态不足以保留库存的双状态形状，采用两成分高斯混合；生成时限制在可行支持。 &
-2,553 个训练日的两成分 Gaussian-mixture 拟合：
-$w=(.472753,.527247)$，
-$\mu=(246.704,314.756)$，
-$\sigma=(37.565,38.244)$。
-训练期最大值 519 向上取整为支持上界 520。\\
-
-$u,r$ &
-两者均为有限离散量，不再强加连续分布。 &
-$u$ 对总申请量合并稀疏尾部后计算频率；
-$r=(6E+4B+2C+V)/13$，直接使用 $k/13$ 的训练期经验频率。\\
-
-$Hb\mid r$ &
-风险层内仍有明显异质性，采用两成分混合；生成时将成分截断至经验支持。 &
-53,305 条训练申请中，52,502 条 Hb 非缺失；按 $L/M/H$ 分层后，
-分别拟合两成分 Gaussian-mixture，得到主文 $w,\mu,\sigma$。
-$Q_{.01}=42$、$Q_{.99}=170$、中位数 122；缺失率 $803/53305=.01506$。\\
-
-日级依赖 &
-边际分布分别校准，Gaussian copula 只负责保留跨变量依赖。 &
-将训练期秩转换为潜在高斯相关，再作
-$\Sigma=.95\widehat\Sigma_{\rm rank}+.05I_5$ 收缩；主文报告冻结矩阵。\\
+$N^-$ & 每日人数是计数，且方差 $540.96$ 远大于均值 $56.97$，用负二项保留过度离散。 & 用均值 $56.9659$、方差 $540.9597$ 做矩匹配，得到 $\NB(6.7049,.105305)$；训练期最大值 138 为上界。\\
+$N^+$ & 同样是过度离散的每日计数。 & 用均值 $28.0529$、方差 $196.3235$ 做矩匹配，得到 $\NB(4.6768,.142891)$；训练期最大值 73 为上界。\\
+$c_p$ & 对数压缩后位于 $[0,1]$ 且仍有偏态，用 Beta。 & $Q_{.99}(n_p)=88$，故分母为 $\log89$；变换后 $(m,v)=(.82449,.01607)$，矩匹配得到 $\Beta(6.60,1.41)$。\\
+$c_e$ & 同样是 $[0,1]$ 上的有界偏态压力。 & $Q_{.99}(n_e)=40$，故分母为 $\log41$；变换后 $(m,v)=(.58987,.04033)$，矩匹配得到 $\Beta(2.95,2.05)$。\\
+$I$ & 经验库存有两个明显中心，单一正态无法保留该形状，用两成分截断正态混合。 & 2,553 个训练日拟合得到 $w=(.472753,.527247)$，$\mu=(246.704,314.756)$，$\sigma=(37.565,38.244)$；经验最大值 519 向上取整为 520。\\
 \bottomrule
 \end{tabularx}
 \end{center}
 
-\group{共同库存锚点与 MDCEV 参数}
+\group{日级相关：先生成相关均匀数，再套回五个边际}
 \[
-G=10\times\operatorname{round}
-\left\{\frac{\operatorname{median}(I_{\rm train})}{10}\right\}
+\widehat\Sigma_{\rm emp}
+\longrightarrow \Sigma=.95\widehat\Sigma_{\rm emp}+.05I_5
+\longrightarrow Z_t\sim\mathcal N_5(0,\Sigma)
+\longrightarrow U_t=\Phi(Z_t)
+\longrightarrow V_{jt}=F_j^{-1}(U_{jt}).
+\]
+\smallnote{$\widehat\Sigma_{\rm emp}$ 来自训练期五变量的经验秩相关；加入 $5\%$ 单位阵使矩阵稳定。正态 CDF 将相关正态数变成相关均匀数，各边际的逆 CDF 再恢复 $N^-,N^+,I,c_p,c_e$ 的目标分布。}
+
+\group{患者特征：经验频率与分层 $Hb$}
+\begin{tabularx}{.99\textwidth}{
+  >{\bfseries\raggedright\arraybackslash}p{20mm}
+  >{\raggedright\arraybackslash}X}
+$u,r$ & 直接使用训练期经验频率，不再额外拟合连续分布。\\
+$Hb\mid r$ & 不同风险层的 $Hb$ 形状明显不同，且层内有两个主要峰，因此在 $L/M/H$ 三层分别使用两成分截断正态。用 52,502 条非缺失 $Hb$ 拟合各层的 $w,\mu,\sigma$；42、170 分别是经验 1\% 和 99\% 分位数。53,305 条申请的经验缺失率为 $.01506$，缺失值用中位数 122 补齐。\\
+\end{tabularx}
+
+\group{MDCEV：共同库存锚点与参数}
+\[
+G=10\times\operatorname{round}\!\left(\frac{\operatorname{median}(I_{\rm train})}{10}\right)
 =10\times\operatorname{round}(283/10)=280.
 \]
-\begin{center}
-\fontsize{8.5}{10.2}\selectfont
-\begin{tabularx}{.98\textwidth}{
-  >{\bfseries\raggedright\arraybackslash}p{33mm}
+\begin{tabularx}{.99\textwidth}{
+  >{\bfseries\raggedright\arraybackslash}p{31mm}
   >{\raggedright\arraybackslash}X}
-共同库存水平 & $G=280$ 同时进入医院库存保留效用与血液中心期末库存目标；它是历史库存中位数的业务化取整，不宣称为理论最优安全库存。\\
-效用尺度调整 & 固定 $\kappa=1$。原 $G=256$ 下 $(s_\gamma,\beta_0)=(.43,-.956)$ 匹配训练期需求矩 $(20.6227,10.2746,34.0)$；改为 $G=280$ 后取
-$\beta_0=-.956+\log(280/256)=-.866388\ldots$，主文记为 $-.8664$，医院 MDCEV 分配保持不变；评价层按 $G=280$ 重算。\\
-结构参数 & $.15,1.20,.45,.40,.60$ 按“临床风险与 Hb 缺口为主、压力交互为辅”设置相对强度；$.08,.12$ 分别控制日级与患者扰动。\\
+共同库存水平 & $G=280$ 同时进入医院库存保留效用与血液中心期末库存目标，取自训练期库存中位数并按 10 单位取整。\\
+效用与需求尺度 & 固定 $\kappa=1$；在 $G=280$ 下取 $(s_\gamma,\beta_0)=(.43,-.8664)$，对应需求矩 $(\mathbb E[D],\operatorname{SD}[D],Q_{.9})=(20.6227,10.2746,34.0)$。\\
+结构系数 & $.15,1.20,.45,.40,.60$ 使患者主效应以临床风险和 $Hb$ 缺口为主，并保留“计划压力 $\times$ 申请规模”“急诊压力 $\times$ 临床风险”两项交叉作用。\\
+扰动尺度 & $.08,.12$ 分别控制日级共同波动与患者个体差异。\\
 \end{tabularx}
-\end{center}
-
-\vfill
-{\fontsize{7.8}{9.2}\selectfont\color{muted}
-临床阈值参考：Carson et al. (2023), \textit{Red Blood Cell Transfusion: 2023 AABB International Guidelines}, \textit{JAMA} 330(19):1892--1902。本文在 7--8 g/dL 范围内以 $70+10r_i$ 连续参数化。}
+\endgroup
 
 \end{document}
