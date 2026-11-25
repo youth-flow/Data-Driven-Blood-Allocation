@@ -4,5 +4,26 @@
   "configurations": 17,
   "n_test": 10000,
   "bootstrap_replications": 2000,
-  "oracle_paths": 4096
+  "oracle_paths": 4096,
+  "target_G": 280.0,
+  "code_fingerprint": "cbfeaa77b357cb43f9471aff374dffb7ab1285fe1553fd1a9d0059d77259dc6c",
+  "reference_mean_costs": {
+    "SAA": 2.5489832681410753,
+    "PF": 1.197030703898072,
+    "Oracle": 1.774901404732987
+  },
+  "reference_service_rates": {
+    "SAA": 0.946,
+    "PF": 1.0,
+    "Oracle": 0.9282
+  },
+  "reused_frozen_predictions": true,
+  "oracle_reused": true,
+  "source_data_identity": "ce83de8cb9baa8a5545b1ff5b9093f5cb3cd11ee446f6d41c11522e27d5aa13b",
+  "source_G": 256.0,
+  "source_log_phi_intercept": -0.956,
+  "source_code_fingerprint": "e81eccb876ac1864648ee292f38c4b32e7d75a7910a3b29cdab76f94a9d3e882",
+  "evaluation_G": 280.0,
+  "evaluation_log_phi_intercept": -0.8663878413103128,
+  "equivalence": "beta_new = beta_old + log(G_new / G_old)"
 }

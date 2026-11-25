@@ -10,11 +10,13 @@ input matrices and fitted model binaries.
 - DGP: empirically calibrated AXID-DC v10 MDCEV
 - Data identity: ce83de8cb9baa8a5545b1ff5b9093f5cb3cd11ee446f6d41c11522e27d5aa13b
 - Train/test days: 524,288 / 10,000
-- Quantile and common target: tau = 0.9, G = 256
+- Quantile and common target: tau = 0.9, G = 280
 - Model seed: 2026111404
 - DGP train/test seeds: 2026111401 / 2026111402
 - Bootstrap: 2,000 paired test-day resamples
 - Conditional Oracle: 4,096 paths per test day; 500-day audit at 16,384 paths
+- Evaluation reuse: the 17 hash-verified predictions and conditional Oracle
+  were reused; only the G=280 operational outcomes and bootstrap were recomputed
 
 ## Included
 
@@ -48,24 +50,34 @@ included anywhere in this result package.
 
 ## Main results
 
-| Experiment | Configuration | P_PF | P_Oracle | MeanCost | SL_256 |
+| Experiment | Configuration | P_PF | P_Oracle | MeanCost | SL_280 |
 |---|---|---:|---:|---:|---:|
-| P1 | DAT | 0.581911 | 0.979310 | 2.697282 | 0.9514 |
-| P1 | GBQR | 0.566276 | 0.952996 | 2.712756 | 0.9484 |
-| P1 | wSAA | 0.541103 | 0.910632 | 2.737668 | 0.9545 |
-| P2 | Full | 0.581911 | 0.979310 | 2.697282 | 0.9514 |
-| P2 | No-SA | 0.581206 | 0.978124 | 2.697979 | 0.9550 |
-| P2 | No-Day-Query | 0.563790 | 0.948814 | 2.715215 | 0.9362 |
-| P2 | Mean-Pool | 0.559510 | 0.941610 | 2.719451 | 0.9353 |
-| P2 | Sum-Pool | 0.103071 | 0.173460 | 3.171169 | 0.9460 |
-| P3 | L0 | 0.418518 | 0.704332 | 2.858985 | 0.9333 |
-| P3 | L1 | 0.464890 | 0.782373 | 2.813093 | 0.9464 |
-| P3 | L2 | 0.524307 | 0.882367 | 2.754290 | 0.9479 |
-| P3 | L3 | 0.581911 | 0.979310 | 2.697282 | 0.9514 |
+| P1 | DAT | 0.561033 | 0.979857 | 1.790493 | 0.9320 |
+| P1 | GBQR | 0.547535 | 0.956282 | 1.808742 | 0.9295 |
+| P1 | wSAA | 0.523655 | 0.914576 | 1.841027 | 0.9398 |
+| P2 | Full | 0.561033 | 0.979857 | 1.790493 | 0.9320 |
+| P2 | No-SA | 0.560534 | 0.978987 | 1.791168 | 0.9376 |
+| P2 | No-Day-Query | 0.543986 | 0.950085 | 1.813539 | 0.9109 |
+| P2 | Mean-Pool | 0.540915 | 0.944721 | 1.817692 | 0.9114 |
+| P2 | Sum-Pool | 0.050986 | 0.089048 | 2.480053 | 0.9105 |
+| P3 | L0 | 0.391861 | 0.684394 | 2.019206 | 0.9083 |
+| P3 | L1 | 0.446887 | 0.780499 | 1.944813 | 0.9264 |
+| P3 | L2 | 0.504318 | 0.880803 | 1.867169 | 0.9291 |
+| P3 | L3 | 0.561033 | 0.979857 | 1.790493 | 0.9320 |
 
 The full-precision values for every configuration are in final_metrics.csv.
+The G=280 reference mean costs are SAA 2.548983, perfect foresight 1.197031,
+and conditional Oracle 1.774901; their target service rates are 0.9460,
+1.0000, and 0.9282, respectively.
 Oracle stability over the 500 audited days has mean absolute quantile
 difference 0.147675 between 4,096 and 16,384 paths.
+
+The committed dataset metadata retains its original generation identity
+`G=256, beta0=-.956`.  The current parameterization uses
+`G=280, beta0=-.8663878413103128`; because
+`beta_new=beta_old+log(G_new/G_old)`, the MDCEV shadow price rescales while
+patient allocations, total demand, fitted predictions, and the conditional
+Oracle remain unchanged.  The metrics-stage manifest records this equivalence.
 
 ## Reproduction
 
@@ -77,4 +89,11 @@ python scripts/run_v10_experiment.py --stage p3
 python scripts/run_v10_experiment.py --stage p2
 python scripts/run_v10_experiment.py --stage p1 --approve-p1
 python scripts/run_v10_experiment.py --stage metrics --oracle-workers 6
+~~~
+
+To reproduce only the verified target change from the retained formal
+artifacts:
+
+~~~powershell
+python scripts/run_v10_experiment.py --stage metrics --resume --reuse-frozen-evaluation
 ~~~

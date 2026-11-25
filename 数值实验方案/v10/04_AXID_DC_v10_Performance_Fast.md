@@ -9,7 +9,7 @@
 医院 MDCEV 与血液中心评价共同使用
 
 \[
-G=256,\qquad \tau=0.9.
+G=280,\qquad \tau=0.9.
 \]
 
 对任一方法 \(m\)：
@@ -27,7 +27,7 @@ c_{m,t}=0.9(G-E_{m,t})_++0.1(E_{m,t}-G)_+.
 
 \[
 \operatorname{MeanCost}_m=T^{-1}\sum_t c_{m,t},\qquad
-SL_{256}(m)=T^{-1}\sum_t\mathbf 1\{E_{m,t}\ge256\},
+SL_{280}(m)=T^{-1}\sum_t\mathbf 1\{E_{m,t}\ge280\},
 \]
 
 \[
@@ -134,3 +134,11 @@ optimizer step及 2,048 个测试日前向共约 23.1 秒；正式 DGP 生成线
 实际耗时写入 `fit_duration_seconds` 和 `duration_seconds`，正式结果以 manifest 为准。
 
 DGP 的分布、映射及参数识别边界见 `02_AXID_DC_v10_DGP.md`。
+
+若只把共同目标从旧口径 256 改为 280，并同步采用
+\(\beta_0=-.956+\log(280/256)=-.8663878413\)，则 MDCEV 的 \(Y_i\)、\(R\) 与
+总需求 \(D\) 不变。可在校验既有预测与 Oracle 哈希后只复算评价：
+
+```powershell
+D:\anaconda\envs\attention\python.exe scripts\run_v10_experiment.py --stage metrics --resume --reuse-frozen-evaluation
+```

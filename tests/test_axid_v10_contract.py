@@ -25,7 +25,7 @@ def test_v10_contract_is_frozen_and_self_consistent():
     assert validate_contract(protocol, reference) == {
         "status": "frozen",
         "scenario": "AXID-DC-v10",
-        "G": 256.0,
+        "G": 280.0,
         "methods": 8,
         "variants": 5,
         "levels": 4,
@@ -36,21 +36,21 @@ def test_v10_contract_is_frozen_and_self_consistent():
     }
     assert protocol["performance_experiments"]["n_train"] == 128 * 4096
     assert protocol["evaluation"]["final_metrics"] == FINAL_METRICS
-    assert protocol["performance_experiments"]["targets"] == [256.0]
+    assert protocol["performance_experiments"]["targets"] == [280.0]
     assert protocol["sampling"]["model_day_features"][-1] == "sum_hb_scaled"
     assert protocol["sampling"]["day_scaling"]["sum_hb"] == "sum((hb - 42) / 128) / 138"
     assert protocol["sampling"]["tabular_summary"]["dimension"] == 16
     assert protocol["dat"]["output_clip"] == [0.0, 520.0]
     assert reference["max_new_orders"] == 73
     assert reference["gamma_scale"] == 0.43
-    assert reference["log_phi_intercept"] == -0.956
+    assert reference["log_phi_intercept"] == -0.8663878413103128
 
 
 def test_v10_rejects_two_different_G_values():
     protocol, reference = _load()
     changed = deepcopy(protocol)
     changed["decision"]["blood_center_target_G"] = 260.0
-    with pytest.raises(ValueError, match="same 256"):
+    with pytest.raises(ValueError, match="same 280"):
         validate_contract(changed, reference)
 
 

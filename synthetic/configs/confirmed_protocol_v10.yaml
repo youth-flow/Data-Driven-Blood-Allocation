@@ -7,9 +7,9 @@ data_access: fully_artificial_only
 
 decision:
   tau: 0.9
-  common_G: 256.0
-  hospital_mdcev_G: 256.0
-  blood_center_target_G: 256.0
+  common_G: 280.0
+  hospital_mdcev_G: 280.0
+  blood_center_target_G: 280.0
   shortage_weight: 0.9
   excess_weight: 0.1
   nonnegative_replenishment: true
@@ -112,7 +112,7 @@ performance_experiments:
   early_stopping: false
   checkpoint: final_step
   taus: [0.9]
-  targets: [256.0]
+  targets: [280.0]
   model_seeds: [2026111404]
   shared_neural_schedule_methods: [DAT, Set-ETO, DeepQR]
   seeds:
@@ -148,7 +148,7 @@ performance_experiments:
   manual_gate_after_p2: true
 
 evaluation:
-  final_metrics: [P_PF, P_Oracle, MeanCost, SL_256]
+  final_metrics: [P_PF, P_Oracle, MeanCost, SL_280]
   nominal_service_rate: 0.9
   saa_reference: unconditional_train_left_quantile
   perfect_foresight_reference: realized_demand
@@ -192,7 +192,7 @@ runtime:
 
 implementation_gates:
   - v10_files_do_not_overwrite_v8
-  - one_shared_G_256
+  - one_shared_G_280
   - three_patient_features_seven_day_features
   - max_visible_138_max_new_73
   - demand_support_0_520

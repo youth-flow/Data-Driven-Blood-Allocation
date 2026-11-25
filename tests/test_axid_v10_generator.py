@@ -57,7 +57,7 @@ def test_profiles_mapping_and_mdcev_kkt():
     assert abs(new[:, 1].mean() - old[:, 1].mean()) < 0.03
     gamma, phi, ell, deficit = mechanism_parameters(old[:70], 0.7, 0.6, 0.0, np.zeros(70))
     assert np.all((0.39 <= gamma) & (gamma <= 0.87))
-    assert np.all(phi > 0) and np.all((0 <= ell) & (ell <= 1)) and np.all((0 <= deficit) & (deficit <= 4))
+    assert np.all(phi > 0) and np.all((0 <= ell) & (ell <= 1)) and np.all((0 <= deficit) & (deficit <= 3.8))
     patient_cap = old[:70, 0]
     doses, reserve, multiplier = mdcev_allocate(gamma, phi, 270.0, cap=patient_cap)
     assert np.all((0 <= doses) & (doses <= patient_cap))
@@ -78,6 +78,20 @@ def test_profiles_mapping_and_mdcev_kkt():
     )
     scalar_second = mdcev_allocate(gamma[:35], phi[:35], 240.0, cap=patient_cap[:35])[0].sum()
     np.testing.assert_allclose(batched, [doses.sum(), scalar_second], atol=2e-6)
+
+
+def test_g280_scale_change_preserves_mdcev_allocations_and_demand():
+    rng = np.random.default_rng(230)
+    patients = draw_profiles(rng, 70, "old")
+    gamma, phi_new, _, _ = mechanism_parameters(
+        patients, 0.7, 0.6, 0.03, rng.gumbel(-0.12 * np.euler_gamma, 0.12, 70)
+    )
+    scale = 280.0 / 256.0
+    old = mdcev_allocate(gamma, phi_new / scale, 300.0, target=256.0, cap=patients[:, 0])
+    new = mdcev_allocate(gamma, phi_new, 300.0, target=280.0, cap=patients[:, 0])
+    np.testing.assert_allclose(new[0], old[0], rtol=0.0, atol=2e-10)
+    assert np.isclose(new[1], old[1], rtol=0.0, atol=2e-10)
+    assert np.isclose(new[2], scale * old[2], rtol=0.0, atol=2e-10)
 
 
 def test_daily_and_conditional_demand_support():

@@ -38,7 +38,7 @@ PSI_COLUMNS = [
     "psi_hb_max",
 ]
 
-TARGET_INVENTORY = 256.0
+TARGET_INVENTORY = 280.0
 KAPPA = 1.0
 DOSE_CAP = 10.0
 INVENTORY_LOWER = 0.0
@@ -84,7 +84,9 @@ HB_IMPUTATION, HB_MISSING_PROBABILITY = 122.0, 803.0 / 53305.0
 INVENTORY_WEIGHTS = np.array([0.472753, 0.527247])
 INVENTORY_MEANS = np.array([246.70438, 314.7556])
 INVENTORY_SDS = np.array([37.565011, 38.24376])
-LOG_PHI_INTERCEPT = -0.956
+# This full-precision shift keeps every MDCEV allocation unchanged when
+# G moves from 256 to 280: phi and the shadow price scale by 280 / 256.
+LOG_PHI_INTERCEPT = -0.8663878413103128
 GAMMA_SCALE = 0.43
 PLANNED_BETA = (6.60, 1.41)
 EMERGENCY_BETA = (2.95, 2.05)
@@ -182,7 +184,7 @@ def mechanism_parameters(patients, cp, ce, eta, epsilon):
         raise ValueError("patients=(u,r,hb) and one epsilon per patient are required")
     application, risk, hb = patients.T
     ell = np.log1p(application) / np.log(11.0)
-    deficit = np.minimum(4.0, np.maximum((70.0 + 10.0 * risk - hb) / 10.0, 0.0))
+    deficit = np.maximum((70.0 + 10.0 * risk - hb) / 10.0, 0.0)
     gamma = GAMMA_SCALE * (0.5 + 1.5 * ell)
     log_phi = (
         LOG_PHI_INTERCEPT
@@ -388,7 +390,7 @@ def _conditional_demand_batch(old_patients, cp, ce, inventory, counts, rng):
         valid[:, n_old:] = new_valid
     application, risk, hb = np.moveaxis(patients, -1, 0)
     ell = np.log1p(application) / np.log(11.0)
-    deficit = np.minimum(4.0, np.maximum((70.0 + 10.0 * risk - hb) / 10.0, 0.0))
+    deficit = np.maximum((70.0 + 10.0 * risk - hb) / 10.0, 0.0)
     gamma = GAMMA_SCALE * (0.5 + 1.5 * ell)
     eta = rng.normal(0.0, 0.08, size=(draws, 1))
     epsilon = rng.gumbel(-0.12 * np.euler_gamma, 0.12, size=(draws, width))
@@ -575,7 +577,7 @@ def _generate_chunk(rng, start, stop, contexts, offsets, patients_out, labels_ou
     profiles[valid] = draw_profiles(rng, int(counts.sum()), "old")
     application, risk, hb = np.moveaxis(profiles, -1, 0)
     ell = np.log1p(application) / np.log(11.0)
-    deficit = np.minimum(4.0, np.maximum((70.0 + 10.0 * risk - hb) / 10.0, 0.0))
+    deficit = np.maximum((70.0 + 10.0 * risk - hb) / 10.0, 0.0)
     gamma = GAMMA_SCALE * (0.5 + 1.5 * ell)
     eta = rng.normal(0.0, 0.08, size=(rows, 1))
     epsilon = rng.gumbel(-0.12 * np.euler_gamma, 0.12, size=(rows, width))
@@ -630,7 +632,7 @@ def generate_performance(config, output):
     if int(config["max_visible_orders"]) != MAX_VISIBLE_ORDERS or int(config["max_new_orders"]) != MAX_NEW_ORDERS:
         raise ValueError("v10 count supports are fixed at 138 and 73")
     if float(config.get("target_inventory", TARGET_INVENTORY)) != TARGET_INVENTORY:
-        raise ValueError("v10 uses the single common G=256")
+        raise ValueError("v10 uses the single common G=280")
     if float(config.get("gamma_scale", GAMMA_SCALE)) != GAMMA_SCALE or float(
         config.get("log_phi_intercept", LOG_PHI_INTERCEPT)
     ) != LOG_PHI_INTERCEPT:

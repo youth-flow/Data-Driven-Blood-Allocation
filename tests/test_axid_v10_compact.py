@@ -31,7 +31,7 @@ def test_compact_fold_and_dat_smoke(tmp_path):
     assert PsiFeatures().fit(data).transform(data, data.daily_split("train")).shape == (64, 16)
 
     config = load_config(ROOT / "configs/synthetic.yaml")
-    config.update(seed=91, taus=[0.9], targets=[256.0], data_root=str(folder), output_root=str(tmp_path))
+    config.update(seed=91, taus=[0.9], targets=[280.0], data_root=str(folder), output_root=str(tmp_path))
     config["training"] = {
         "device": "cpu",
         "threads": 1,

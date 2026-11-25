@@ -10,6 +10,7 @@ from axid_synthetic.pipeline_v10 import (
     P2_SPECS,
     P3_SPECS,
     _all_prediction_jobs,
+    _mdcev_scale_equivalent,
     _runtime_config,
     load_frozen_specs,
     run_data_stage,
@@ -28,6 +29,7 @@ def _args(**updates):
         threads=1,
         oracle_workers=1,
         approve_p1=False,
+        reuse_frozen_evaluation=False,
     )
     values.update(updates)
     return Namespace(**values)
@@ -54,11 +56,23 @@ def test_smoke_data_stage_and_runtime_config(tmp_path):
     assert len(data.daily_split("train")) == 128
     assert len(data.daily_split("eval")) == 32
     config = _runtime_config(ROOT, output, data.directory, protocol, "DAT", "full", "L3", _args())
-    assert config["taus"] == [0.9] and config["targets"] == [256.0]
+    assert config["taus"] == [0.9] and config["targets"] == [280.0]
     assert config["training"]["batch_size"] == 8
     assert config["training"]["max_steps"] == 16
     assert config["training"]["num_workers"] == 0
     assert config["model_overrides"]["DAT"]["training"]["learning_rate"] == 3e-4
+
+
+def test_g280_parameterization_is_scale_equivalent_to_legacy_artifacts():
+    source = {"target_inventory": 256.0, "gamma_scale": 0.43, "log_phi_intercept": -0.956}
+    target = {
+        "target_inventory": 280.0,
+        "gamma_scale": 0.43,
+        "log_phi_intercept": -0.8663878413103128,
+    }
+    assert _mdcev_scale_equivalent(source, target)
+    target["log_phi_intercept"] = -0.8
+    assert not _mdcev_scale_equivalent(source, target)
 
 
 def test_p1_requires_completed_stages_and_explicit_approval(tmp_path):

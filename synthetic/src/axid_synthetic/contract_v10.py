@@ -13,7 +13,7 @@ from math import isclose
 METHODS = ["DAT", "SAA", "wSAA", "Flat", "Set-ETO", "LQR", "GBQR", "DeepQR"]
 VARIANTS = ["full", "no_self_attention", "no_day_query", "mean_pool", "sum_pool"]
 LEVELS = ["L0", "L1", "L2", "L3"]
-FINAL_METRICS = ["P_PF", "P_Oracle", "MeanCost", "SL_256"]
+FINAL_METRICS = ["P_PF", "P_Oracle", "MeanCost", "SL_280"]
 EXECUTION_ORDER = ["data", "P3", "P2", "H1", "P1", "PF_and_Oracle"]
 SEEDS = {
     "dgp_train": 2026111401,
@@ -102,7 +102,7 @@ def validate_contract(protocol, reference):
     decision = protocol["decision"]
     _require(_same_number(decision["tau"], 0.9), "v10 tau must be 0.9")
     for field in ("common_G", "hospital_mdcev_G", "blood_center_target_G"):
-        _require(_same_number(decision[field], 256.0), "hospital and blood-center G must be the same 256")
+        _require(_same_number(decision[field], 280.0), "hospital and blood-center G must be the same 280")
     _require(
         _same_number(decision["shortage_weight"], 0.9)
         and _same_number(decision["excess_weight"], 0.1),
@@ -147,10 +147,10 @@ def validate_contract(protocol, reference):
     _require(int(reference["max_visible_orders"]) == 138, "v10 reference visible cap mismatch")
     _require(int(reference["max_new_orders"]) == 73, "v10 reference new-patient cap mismatch")
     _require(_same_number(reference["demand_support_upper"], 520.0), "v10 reference demand cap mismatch")
-    _require(_same_number(reference["target_inventory"], 256.0), "v10 reference common G mismatch")
+    _require(_same_number(reference["target_inventory"], 280.0), "v10 reference common G mismatch")
     _require(
         _same_number(reference["gamma_scale"], 0.43)
-        and _same_number(reference["log_phi_intercept"], -0.956),
+        and _same_number(reference["log_phi_intercept"], -0.8663878413103128),
         "v10 moment-calibrated gamma scale/intercept changed",
     )
 
@@ -208,7 +208,7 @@ def validate_contract(protocol, reference):
     _require(performance["schedule"] == "cosine", "v10 learning-rate schedule must be cosine")
     _require(_same_number(performance["weight_decay"], 1e-4), "v10 weight decay must be 1e-4")
     _require(performance["precision"] == "fp32", "v10 formal training precision must be FP32")
-    _require(performance["taus"] == [0.9] and performance["targets"] == [256.0], "v10 has one tau and one G")
+    _require(performance["taus"] == [0.9] and performance["targets"] == [280.0], "v10 has one tau and one G")
     _require(performance["model_seeds"] == [2026111404], "v10 fixes one model initialization")
     _require(
         performance["shared_neural_schedule_methods"] == ["DAT", "Set-ETO", "DeepQR"],
@@ -237,7 +237,7 @@ def validate_contract(protocol, reference):
     _require(performance["manual_gate_after_p2"] is True, "v10 H1 manual gate must remain active")
 
     evaluation = protocol["evaluation"]
-    _require(evaluation["final_metrics"] == FINAL_METRICS, "v10 must report exactly two P, MeanCost, and SL_256")
+    _require(evaluation["final_metrics"] == FINAL_METRICS, "v10 must report exactly two P, MeanCost, and SL_280")
     _require(_same_number(evaluation["nominal_service_rate"], 0.9), "v10 nominal service rate must be 0.9")
     _require(evaluation["clip_prescriptiveness"] is False, "v10 P metrics must not be clipped")
     bootstrap = evaluation["bootstrap"]
@@ -282,7 +282,7 @@ def validate_contract(protocol, reference):
     return {
         "status": "frozen",
         "scenario": "AXID-DC-v10",
-        "G": 256.0,
+        "G": 280.0,
         "methods": len(METHODS),
         "variants": len(VARIANTS),
         "levels": len(LEVELS),

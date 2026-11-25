@@ -1,4 +1,4 @@
-"""AXID-DC v10 operational metrics for the single common target ``G=256``.
+"""AXID-DC v10 operational metrics for the single common target ``G=280``.
 
 The functions in this module deliberately operate on frozen per-day arrays.  In
 particular, the paired bootstrap never refits a model, regenerates a day, or
@@ -14,7 +14,7 @@ import pandas as pd
 
 
 TAU = 0.9
-COMMON_G = 256.0
+COMMON_G = 280.0
 BOOTSTRAP_REPLICATIONS = 2_000
 
 

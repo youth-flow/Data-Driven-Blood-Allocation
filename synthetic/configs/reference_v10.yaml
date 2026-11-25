@@ -10,10 +10,10 @@ n_test: 10000
 max_visible_orders: 138
 max_new_orders: 73
 demand_support_upper: 520.0
-target_inventory: 256.0
+target_inventory: 280.0
 dose_cap: 10.0
 gamma_scale: 0.43
-log_phi_intercept: -0.956
+log_phi_intercept: -0.8663878413103128
 copula_order: [n_old, n_new, inventory, planned_load, emergency_load]
 generation_chunk_days: 2048
 export_csv: false

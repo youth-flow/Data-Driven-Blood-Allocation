@@ -53,7 +53,7 @@ def main(argv=None):
         config.update(
             seed=2026111404,
             taus=[0.9],
-            targets=[256.0],
+            targets=[280.0],
             data_root=str(folder),
             output_root=temporary,
         )

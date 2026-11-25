@@ -8,6 +8,7 @@ and P1 cannot start without an explicit command-line approval flag.
 from __future__ import annotations
 
 import argparse
+from copy import deepcopy
 import json
 import math
 from pathlib import Path
@@ -25,7 +26,7 @@ from dat_study.training import fit_predict
 
 from .contract_v10 import validate_contract
 from .generator_v10 import generate_performance
-from .jobs import run_job, source_fingerprint
+from .jobs import digest, run_job, source_fingerprint
 from .metrics_v10 import (
     COMMON_G,
     TAU,
@@ -75,6 +76,120 @@ def load_frozen_specs(root):
     reference = yaml.safe_load((root / "synthetic/configs/reference_v10.yaml").read_text(encoding="utf-8"))
     validate_contract(protocol, reference)
     return protocol, reference
+
+
+def _mdcev_scale_equivalent(source, target):
+    """Whether two G/intercept pairs generate the same MDCEV allocation."""
+    source_g = float(source["target_inventory"])
+    target_g = float(target["target_inventory"])
+    if source_g <= 0 or target_g <= 0:
+        return False
+    shifted = float(source["log_phi_intercept"]) + math.log(target_g / source_g)
+    return (
+        math.isclose(float(source["gamma_scale"]), float(target["gamma_scale"]), rel_tol=0.0, abs_tol=1e-12)
+        and math.isclose(shifted, float(target["log_phi_intercept"]), rel_tol=0.0, abs_tol=1e-12)
+    )
+
+
+def _target_only_protocol(protocol, target):
+    """Normalize only the fields that are allowed to change with common G."""
+    normalized = deepcopy(protocol)
+    for field in ("common_G", "hospital_mdcev_G", "blood_center_target_G"):
+        normalized["decision"][field] = "<COMMON_G>"
+    normalized["performance_experiments"]["targets"] = ["<COMMON_G>"]
+    metrics = list(normalized["evaluation"]["final_metrics"])
+    expected_service = f"SL_{float(target):g}"
+    if metrics != ["P_PF", "P_Oracle", "MeanCost", expected_service]:
+        raise ValueError("Saved protocol has an unexpected target-service metric")
+    normalized["evaluation"]["final_metrics"] = ["P_PF", "P_Oracle", "MeanCost", "SL_G"]
+    expected_gate = f"one_shared_G_{float(target):g}"
+    gates = list(normalized["implementation_gates"])
+    if gates.count(expected_gate) != 1:
+        raise ValueError("Saved protocol has an unexpected common-G implementation gate")
+    normalized["implementation_gates"] = [
+        "one_shared_G" if gate == expected_gate else gate for gate in gates
+    ]
+    return normalized
+
+
+def _load_reused_oracle_prediction(output, data, protocol, expected_code_fingerprint):
+    """Load the frozen Oracle after checking every G-independent identity field."""
+    folder = Path(output) / "oracle"
+    prediction_file = folder / "prediction.npy"
+    manifest = read_json(folder / "manifest.json")
+    recipe = manifest.get("recipe", {})
+    settings = protocol["evaluation"]["conditional_oracle"]
+    experiment = protocol["performance_experiments"]
+    expected = {
+        "data_identity": data.identity,
+        "n_test": len(data.daily_split("eval")),
+        "draws": int(settings["paths_per_test_day"]),
+        "batch": min(1024, int(settings["paths_per_test_day"])),
+        "tau": float(experiment["taus"][0]),
+        "seed": int(experiment["seeds"]["oracle"]),
+        "code_fingerprint": expected_code_fingerprint,
+    }
+    for field, value in expected.items():
+        observed = recipe.get(field)
+        if isinstance(value, float):
+            matches = observed is not None and math.isclose(
+                float(observed), value, rel_tol=0.0, abs_tol=1e-12
+            )
+        else:
+            matches = observed == value
+        if not matches:
+            raise ValueError(f"Saved Oracle {field} is incompatible with G-only reevaluation")
+    if sha256(prediction_file) != manifest.get("prediction_sha256"):
+        raise ValueError("Saved Oracle prediction integrity mismatch")
+    prediction = np.load(prediction_file, allow_pickle=False)
+    if prediction.shape != (expected["n_test"],) or not np.isfinite(prediction).all():
+        raise ValueError("Saved Oracle prediction shape or values are invalid")
+    return prediction
+
+
+def _validate_reused_evaluation(output, data, protocol, reference):
+    """Prove that legacy artifacts remain valid under the G/phi scale change."""
+    source = read_json(Path(output) / "dataset" / "generation.yaml")
+    source_without_scale = dict(source)
+    target_without_scale = dict(reference)
+    for field in ("target_inventory", "log_phi_intercept"):
+        source_without_scale.pop(field, None)
+        target_without_scale.pop(field, None)
+    if source_without_scale != target_without_scale:
+        raise ValueError("Saved dataset differs from the current recipe beyond G/intercept scaling")
+    if not _mdcev_scale_equivalent(source, reference):
+        raise ValueError("Saved dataset is not MDCEV-scale-equivalent to the current G/intercept")
+    source_g = float(source["target_inventory"])
+    current_protocol = _target_only_protocol(protocol, float(reference["target_inventory"]))
+    job_code_fingerprints = set()
+    for job in sorted(set(_all_prediction_jobs().values())):
+        attempt = _job_attempt(output, job)
+        signature = read_json(attempt / "signature.json")
+        if signature.get("data_identity") != data.identity or signature.get("name") != job:
+            raise ValueError(f"Saved prediction signature identity mismatch for {job}")
+        if _target_only_protocol(signature.get("protocol", {}), source_g) != current_protocol:
+            raise ValueError(f"Saved prediction protocol differs beyond the G-only change for {job}")
+        job_code_fingerprints.add(signature.get("code"))
+    if len(job_code_fingerprints) != 1 or None in job_code_fingerprints:
+        raise ValueError("Saved predictions do not share one frozen code fingerprint")
+    legacy_code_fingerprint = job_code_fingerprints.pop()
+    p3_code_fingerprint = _require_stage(output, "p3").get("code_fingerprint")
+    if legacy_code_fingerprint != p3_code_fingerprint:
+        raise ValueError("Saved prediction and P3-stage code fingerprints disagree")
+    oracle_prediction = _load_reused_oracle_prediction(
+        output, data, protocol, legacy_code_fingerprint
+    )
+    return oracle_prediction, {
+        "reused_frozen_predictions": True,
+        "oracle_reused": True,
+        "source_data_identity": data.identity,
+        "source_G": float(source["target_inventory"]),
+        "source_log_phi_intercept": float(source["log_phi_intercept"]),
+        "source_code_fingerprint": legacy_code_fingerprint,
+        "evaluation_G": float(reference["target_inventory"]),
+        "evaluation_log_phi_intercept": float(reference["log_phi_intercept"]),
+        "equivalence": "beta_new = beta_old + log(G_new / G_old)",
+    }
 
 
 def _stage_file(output, stage):
@@ -202,15 +317,30 @@ def _job_attempt(output, name):
     job = Path(output) / "jobs" / name
     record = read_json(job / "complete.json")
     result = (job / record["result"]).resolve()
+    if not result.is_relative_to(job.resolve()):
+        raise ValueError(f"Completed-job result path escapes its folder for {name}")
     attempt = result.parent
-    relative = str((attempt / "prediction.npy").relative_to(job))
-    if relative not in record["artifacts"] or sha256(attempt / "prediction.npy") != record["artifacts"][relative]:
-        raise ValueError(f"Prediction integrity check failed for {name}")
+    for filename in ("prediction.npy", "signature.json"):
+        path = attempt / filename
+        relative = str(path.relative_to(job))
+        if relative not in record["artifacts"] or sha256(path) != record["artifacts"][relative]:
+            raise ValueError(f"{filename} integrity check failed for {name}")
+    if digest(read_json(attempt / "signature.json")) != record.get("signature"):
+        raise ValueError(f"Signature digest check failed for {name}")
     return attempt
 
 
-def load_prediction(output, name):
-    return np.load(_job_attempt(output, name) / "prediction.npy", allow_pickle=False)
+def load_prediction(output, name, *, data_identity=None):
+    attempt = _job_attempt(output, name)
+    if data_identity is not None:
+        signature = read_json(attempt / "signature.json")
+        if (
+            signature.get("scenario") != "AXID-DC-v10"
+            or signature.get("data_identity") != data_identity
+            or signature.get("name") != name
+        ):
+            raise ValueError(f"Prediction identity check failed for {name}")
+    return np.load(attempt / "prediction.npy", allow_pickle=False)
 
 
 def _run_model_job(root, output, data, protocol, spec, args, code_hash):
@@ -406,19 +536,35 @@ def _oracle_predictions(root, output, data, protocol, args):
     return prediction
 
 
-def run_metrics_stage(root, output, protocol, args):
+def run_metrics_stage(root, output, protocol, reference, args):
     _require_stage(output, "p1")
     data = FoldData(Path(output) / "dataset")
     _validate_run_mode(data, protocol, args)
     current_code = source_fingerprint(root)
-    if _require_stage(output, "p3").get("code_fingerprint") != current_code:
-        raise RuntimeError("Code changed after P3; final metrics cannot mix incompatible checkpoints")
+    protocol_targets = [
+        protocol["decision"][field]
+        for field in ("common_G", "hospital_mdcev_G", "blood_center_target_G")
+    ] + [protocol["performance_experiments"]["targets"][0], reference["target_inventory"]]
+    if not all(math.isclose(float(value), COMMON_G, rel_tol=0.0, abs_tol=1e-12) for value in protocol_targets):
+        raise RuntimeError("Metrics COMMON_G, protocol targets, and reference target disagree")
+    reuse_metadata = None
+    if not args.reuse_frozen_evaluation:
+        if _require_stage(output, "p3").get("code_fingerprint") != current_code:
+            raise RuntimeError("Code changed after P3; use --reuse-frozen-evaluation only for a verified G-scale change")
     train = data.daily_split("train")
     test = data.daily_split("eval")
     demand = test.D.to_numpy(float)
     inventory = test.It.to_numpy(float)
-    oracle_prediction = _oracle_predictions(root, output, data, protocol, args)
-    predictions = {name: load_prediction(output, job) for name, job in _all_prediction_jobs().items()}
+    if args.reuse_frozen_evaluation:
+        oracle_prediction, reuse_metadata = _validate_reused_evaluation(
+            output, data, protocol, reference
+        )
+    else:
+        oracle_prediction = _oracle_predictions(root, output, data, protocol, args)
+    predictions = {
+        name: load_prediction(output, job, data_identity=data.identity)
+        for name, job in _all_prediction_jobs().items()
+    }
     summaries, costs, services = [], {}, {}
     references = None
     for name, prediction in predictions.items():
@@ -439,7 +585,7 @@ def run_metrics_stage(root, output, protocol, args):
                 "P_Oracle": result["P_Oracle"],
                 "P_Oracle_defined": result["P_Oracle_defined"],
                 "MeanCost": result["MeanCost"],
-                "SL_256": result["SL_G"],
+                "SL_280": result["SL_G"],
                 "n_test": len(demand),
             }
         )
@@ -466,7 +612,7 @@ def run_metrics_stage(root, output, protocol, args):
         replications=bootstrap_repetitions,
         seed=int(protocol["performance_experiments"]["seeds"]["bootstrap"]),
     )
-    bootstrap["metric"] = bootstrap.metric.replace({"SL_G": "SL_256"})
+    bootstrap["metric"] = bootstrap.metric.replace({"SL_G": "SL_280"})
     bootstrap.rename(columns={"method": "configuration"}, inplace=True)
     bootstrap.to_csv(Path(output) / "bootstrap_intervals.csv", index=False)
     _mark_stage(
@@ -479,6 +625,17 @@ def run_metrics_stage(root, output, protocol, args):
             "oracle_paths": 256
             if args.smoke
             else int(protocol["evaluation"]["conditional_oracle"]["paths_per_test_day"]),
+            "target_G": COMMON_G,
+            "code_fingerprint": current_code,
+            "reference_mean_costs": {
+                name: float(np.mean(references[name]["cost"]))
+                for name in ("SAA", "PF", "Oracle")
+            },
+            "reference_service_rates": {
+                name: float(np.mean(references[name]["service"]))
+                for name in ("SAA", "PF", "Oracle")
+            },
+            **(reuse_metadata or {"reused_frozen_predictions": False, "oracle_reused": False}),
         },
     )
     return metrics, bootstrap
@@ -494,6 +651,11 @@ def build_parser(root):
     parser.add_argument("--approve-p1", action="store_true")
     parser.add_argument("--smoke", action="store_true")
     parser.add_argument("--resume", action="store_true")
+    parser.add_argument(
+        "--reuse-frozen-evaluation",
+        action="store_true",
+        help="reuse hash-verified predictions and Oracle after a proven G/intercept scale change",
+    )
     return parser
 
 
@@ -502,6 +664,8 @@ def main(argv=None, root=None):
     args = build_parser(root).parse_args(argv)
     if args.threads < 1 or args.oracle_workers < 1:
         raise ValueError("threads and oracle-workers must be positive")
+    if args.reuse_frozen_evaluation and args.stage != "metrics":
+        raise ValueError("--reuse-frozen-evaluation is valid only for --stage metrics")
     protocol, reference = load_frozen_specs(root)
     args.output = args.output.resolve()
     if args.stage == "data":
@@ -509,6 +673,6 @@ def main(argv=None, root=None):
     elif args.stage in {"p3", "p2", "p1"}:
         run_model_stage(root, args.output, protocol, args.stage, args)
     else:
-        run_metrics_stage(root, args.output, protocol, args)
+        run_metrics_stage(root, args.output, protocol, reference, args)
     print(json.dumps({"stage": args.stage, "complete": True, "output": str(args.output)}), flush=True)
 

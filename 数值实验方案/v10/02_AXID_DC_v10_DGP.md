@@ -17,7 +17,7 @@ Z_t=(A_t^-,c_{p,t},c_{e,t},I_t)
 任何性能模型。
 
 \[
-G=256,\qquad \kappa=1.
+G=280,\qquad \kappa=1.
 \]
 
 ## 2. 日级联合分布
@@ -106,7 +106,7 @@ Hb\mid H\sim .831TN_{[42,170]}(57.8,8.4^2)+.169TN_{[42,170]}(101.1,27.2^2).
 
 \[
 \ell_i=\frac{\log(1+u_i)}{\log11},\qquad
-d_i=\min\left\{4,\left[\frac{70+10r_i-Hb_i}{10}\right]_+\right\}.
+d_i=\left[\frac{70+10r_i-Hb_i}{10}\right]_+.
 \]
 
 \[
@@ -114,7 +114,7 @@ d_i=\min\left\{4,\left[\frac{70+10r_i-Hb_i}{10}\right]_+\right\}.
 \]
 
 \[
-\log\phi_{it}=-.956+.15\ell_i+1.20r_i+.45d_i
+\log\phi_{it}=-.8664+.15\ell_i+1.20r_i+.45d_i
 +.40c_{p,t}\ell_i+.60c_{e,t}r_i+\eta_t+\epsilon_{it},
 \]
 
@@ -127,7 +127,7 @@ d_i=\min\left\{4,\left[\frac{70+10r_i-Hb_i}{10}\right]_+\right\}.
 
 \[
 \max_{R,\mathbf Y}\quad
-256\log(R/256)+\sum_i\gamma_i\phi_i\log(1+Y_i/\gamma_i)
+280\log(R/280)+\sum_i\gamma_i\phi_i\log(1+Y_i/\gamma_i)
 \]
 
 满足
@@ -143,7 +143,7 @@ Y_i(\lambda)=\min\{u_i,\gamma_i(\phi_i/\lambda-1)_+\},
 \]
 
 \[
-256/\lambda+\sum_iY_i(\lambda)=I.
+280/\lambda+\sum_iY_i(\lambda)=I.
 \]
 
 因此每个完整状态只需一维单调二分。患者间交互由共同 \(\lambda\) 和有限库存形成；
@@ -176,6 +176,7 @@ c_p,c_e,I/520,N^-/138,
 ## 6. 校准口径
 
 本版是“经验边际与依赖校准＋结构化 MDCEV 预设＋需求矩校准”，不是全部行为参数的
-完全识别 MLE。\(G=256\) 是业务锚点，\(\kappa=1\) 是效用尺度归一化。五个斜率为
-运行前冻结的结构参数；\((s_\gamma,\beta_0)=(.43,-.956)\) 在最终 AXI 下匹配训练期
+完全识别 MLE。\(G=280\) 是训练期库存中位数按 10 单位取整后的共同业务锚点，
+\(\kappa=1\) 是效用尺度归一化。五个斜率为运行前冻结的结构参数；
+\((s_\gamma,\beta_0)=(.43,-.8664)\) 在最终 AXI 下匹配训练期
 需求均值、标准差和90%分位数。任何参数均不得依据 DAT 或基准方法排名回调。

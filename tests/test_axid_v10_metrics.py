@@ -19,15 +19,14 @@ def test_common_g_cost_service_and_nonnegative_pf():
     inventory = np.array([250.0, 300.0, 240.0])
     prediction = np.array([20.0, 20.0, 20.0])
     outcome = daily_outcomes(prediction, demand, inventory)
-    assert COMMON_G == 256.0
-    assert np.allclose(outcome["replenishment"], [26.0, 0.0, 36.0])
-    assert np.allclose(outcome["ending_inventory"], [266.0, 280.0, 246.0])
-    assert np.allclose(outcome["cost"], [1.0, 2.4, 9.0])
+    assert COMMON_G == 280.0
+    assert np.allclose(outcome["replenishment"], [50.0, 0.0, 60.0])
+    assert np.allclose(outcome["ending_inventory"], [290.0, 280.0, 270.0])
+    assert np.allclose(outcome["cost"], [1.0, 0.0, 9.0])
     assert outcome["service"].tolist() == [True, True, False]
 
     pf = perfect_foresight_outcomes(demand, inventory)
-    # Day two starts above G + D and cannot place a negative order.
-    assert np.allclose(pf["cost"], [0.0, 2.4, 0.0])
+    assert np.allclose(pf["cost"], [0.0, 0.0, 0.0])
 
 
 def test_two_p_and_complete_evaluation():
