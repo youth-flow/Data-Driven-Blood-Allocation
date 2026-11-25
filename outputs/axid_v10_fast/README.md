@@ -50,25 +50,30 @@ included anywhere in this result package.
 
 ## Main results
 
-| Experiment | Configuration | P_PF | P_Oracle | MeanCost | SL_280 |
-|---|---|---:|---:|---:|---:|
-| P1 | DAT | 0.561033 | 0.979857 | 1.790493 | 0.9320 |
-| P1 | GBQR | 0.547535 | 0.956282 | 1.808742 | 0.9295 |
-| P1 | wSAA | 0.523655 | 0.914576 | 1.841027 | 0.9398 |
-| P2 | Full | 0.561033 | 0.979857 | 1.790493 | 0.9320 |
-| P2 | No-SA | 0.560534 | 0.978987 | 1.791168 | 0.9376 |
-| P2 | No-Day-Query | 0.543986 | 0.950085 | 1.813539 | 0.9109 |
-| P2 | Mean-Pool | 0.540915 | 0.944721 | 1.817692 | 0.9114 |
-| P2 | Sum-Pool | 0.050986 | 0.089048 | 2.480053 | 0.9105 |
-| P3 | L0 | 0.391861 | 0.684394 | 2.019206 | 0.9083 |
-| P3 | L1 | 0.446887 | 0.780499 | 1.944813 | 0.9264 |
-| P3 | L2 | 0.504318 | 0.880803 | 1.867169 | 0.9291 |
-| P3 | L3 | 0.561033 | 0.979857 | 1.790493 | 0.9320 |
+`Coverage_0.9 = mean(D <= prediction)` is the quantile-calibration service
+rate; `SL_280 = mean(ending inventory >= 280)` is the operational target
+service rate. Nonnegative replenishment implies `SL_280 >= Coverage_0.9`.
+
+| Experiment | Configuration | P_PF | P_Oracle | MeanCost | Coverage_0.9 | SL_280 |
+|---|---|---:|---:|---:|---:|---:|
+| P1 | DAT | 0.561033 | 0.979857 | 1.790493 | 0.9018 | 0.9320 |
+| P1 | GBQR | 0.547535 | 0.956282 | 1.808742 | 0.8983 | 0.9295 |
+| P1 | wSAA | 0.523655 | 0.914576 | 1.841027 | 0.9131 | 0.9398 |
+| P2 | Full | 0.561033 | 0.979857 | 1.790493 | 0.9018 | 0.9320 |
+| P2 | No-SA | 0.560534 | 0.978987 | 1.791168 | 0.9073 | 0.9376 |
+| P2 | No-Day-Query | 0.543986 | 0.950085 | 1.813539 | 0.8730 | 0.9109 |
+| P2 | Mean-Pool | 0.540915 | 0.944721 | 1.817692 | 0.8756 | 0.9114 |
+| P2 | Sum-Pool | 0.050986 | 0.089048 | 2.480053 | 0.8384 | 0.9105 |
+| P3 | L0 | 0.391861 | 0.684394 | 2.019206 | 0.8770 | 0.9083 |
+| P3 | L1 | 0.446887 | 0.780499 | 1.944813 | 0.9000 | 0.9264 |
+| P3 | L2 | 0.504318 | 0.880803 | 1.867169 | 0.9065 | 0.9291 |
+| P3 | L3 | 0.561033 | 0.979857 | 1.790493 | 0.9018 | 0.9320 |
 
 The full-precision values for every configuration are in final_metrics.csv.
 The G=280 reference mean costs are SAA 2.548983, perfect foresight 1.197031,
 and conditional Oracle 1.774901; their target service rates are 0.9460,
-1.0000, and 0.9282, respectively.
+1.0000, and 0.9282, while their quantile coverages are 0.9010, 1.0000,
+and 0.8962, respectively.
 Oracle stability over the 500 audited days has mean absolute quantile
 difference 0.147675 between 4,096 and 16,384 paths.
 

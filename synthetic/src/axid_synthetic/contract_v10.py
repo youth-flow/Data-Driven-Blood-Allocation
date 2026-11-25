@@ -13,7 +13,7 @@ from math import isclose
 METHODS = ["DAT", "SAA", "wSAA", "Flat", "Set-ETO", "LQR", "GBQR", "DeepQR"]
 VARIANTS = ["full", "no_self_attention", "no_day_query", "mean_pool", "sum_pool"]
 LEVELS = ["L0", "L1", "L2", "L3"]
-FINAL_METRICS = ["P_PF", "P_Oracle", "MeanCost", "SL_280"]
+FINAL_METRICS = ["P_PF", "P_Oracle", "MeanCost", "Coverage_0.9", "SL_280"]
 EXECUTION_ORDER = ["data", "P3", "P2", "H1", "P1", "PF_and_Oracle"]
 SEEDS = {
     "dgp_train": 2026111401,
@@ -237,7 +237,10 @@ def validate_contract(protocol, reference):
     _require(performance["manual_gate_after_p2"] is True, "v10 H1 manual gate must remain active")
 
     evaluation = protocol["evaluation"]
-    _require(evaluation["final_metrics"] == FINAL_METRICS, "v10 must report exactly two P, MeanCost, and SL_280")
+    _require(
+        evaluation["final_metrics"] == FINAL_METRICS,
+        "v10 must report exactly two P, MeanCost, Coverage_0.9, and SL_280",
+    )
     _require(_same_number(evaluation["nominal_service_rate"], 0.9), "v10 nominal service rate must be 0.9")
     _require(evaluation["clip_prescriptiveness"] is False, "v10 P metrics must not be clipped")
     bootstrap = evaluation["bootstrap"]

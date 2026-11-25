@@ -92,22 +92,39 @@ def _mdcev_scale_equivalent(source, target):
 
 
 def _target_only_protocol(protocol, target):
-    """Normalize only the fields that are allowed to change with common G."""
+    """Normalize fields allowed to change in this frozen evaluation update."""
     normalized = deepcopy(protocol)
     for field in ("common_G", "hospital_mdcev_G", "blood_center_target_G"):
         normalized["decision"][field] = "<COMMON_G>"
     normalized["performance_experiments"]["targets"] = ["<COMMON_G>"]
     metrics = list(normalized["evaluation"]["final_metrics"])
     expected_service = f"SL_{float(target):g}"
-    if metrics != ["P_PF", "P_Oracle", "MeanCost", expected_service]:
+    allowed_metrics = (
+        ["P_PF", "P_Oracle", "MeanCost", expected_service],
+        ["P_PF", "P_Oracle", "MeanCost", "Coverage_0.9", expected_service],
+    )
+    if metrics not in allowed_metrics:
         raise ValueError("Saved protocol has an unexpected target-service metric")
-    normalized["evaluation"]["final_metrics"] = ["P_PF", "P_Oracle", "MeanCost", "SL_G"]
+    normalized["evaluation"]["final_metrics"] = [
+        "P_PF", "P_Oracle", "MeanCost", "Coverage_0.9", "SL_G"
+    ]
     expected_gate = f"one_shared_G_{float(target):g}"
     gates = list(normalized["implementation_gates"])
     if gates.count(expected_gate) != 1:
         raise ValueError("Saved protocol has an unexpected common-G implementation gate")
     normalized["implementation_gates"] = [
         "one_shared_G" if gate == expected_gate else gate for gate in gates
+    ]
+    metric_gates = {
+        "exactly_two_P_mean_cost_and_target_service_rate",
+        "exactly_two_P_mean_cost_and_two_service_rates",
+    }
+    present_metric_gates = metric_gates.intersection(normalized["implementation_gates"])
+    if len(present_metric_gates) != 1:
+        raise ValueError("Saved protocol has an unexpected final-metric implementation gate")
+    normalized["implementation_gates"] = [
+        "final_metric_scope" if gate in metric_gates else gate
+        for gate in normalized["implementation_gates"]
     ]
     return normalized
 
@@ -565,7 +582,7 @@ def run_metrics_stage(root, output, protocol, reference, args):
         name: load_prediction(output, job, data_identity=data.identity)
         for name, job in _all_prediction_jobs().items()
     }
-    summaries, costs, services = [], {}, {}
+    summaries, costs, coverages, services = [], {}, {}, {}
     references = None
     for name, prediction in predictions.items():
         result = evaluate_single_method(
@@ -585,11 +602,13 @@ def run_metrics_stage(root, output, protocol, reference, args):
                 "P_Oracle": result["P_Oracle"],
                 "P_Oracle_defined": result["P_Oracle_defined"],
                 "MeanCost": result["MeanCost"],
+                "Coverage_0.9": result["Coverage_0.9"],
                 "SL_280": result["SL_G"],
                 "n_test": len(demand),
             }
         )
         costs[name] = result["daily"]["method"]["cost"]
+        coverages[name] = result["daily"]["method"]["coverage"].astype(float)
         services[name] = result["daily"]["method"]["service"].astype(float)
         if references is None:
             references = result["daily"]
@@ -598,6 +617,7 @@ def run_metrics_stage(root, output, protocol, reference, args):
     daily_archive = {}
     for index, name in enumerate(predictions):
         daily_archive[f"cost_{index:02d}"] = costs[name].astype(np.float32)
+        daily_archive[f"coverage_{index:02d}"] = coverages[name].astype(np.uint8)
         daily_archive[f"service_{index:02d}"] = services[name].astype(np.uint8)
     np.savez(Path(output) / "daily_metric_arrays.npz", **daily_archive)
     save_json(Path(output) / "daily_metric_names.json", {str(i): name for i, name in enumerate(predictions)})
@@ -606,6 +626,7 @@ def run_metrics_stage(root, output, protocol, reference, args):
     bootstrap = paired_bootstrap(
         costs,
         services,
+        method_coverages=coverages,
         saa_cost=references["SAA"]["cost"],
         pf_cost=references["PF"]["cost"],
         oracle_cost=references["Oracle"]["cost"],
@@ -633,6 +654,10 @@ def run_metrics_stage(root, output, protocol, reference, args):
             },
             "reference_service_rates": {
                 name: float(np.mean(references[name]["service"]))
+                for name in ("SAA", "PF", "Oracle")
+            },
+            "reference_coverages": {
+                name: float(np.mean(references[name]["coverage"]))
                 for name in ("SAA", "PF", "Oracle")
             },
             **(reuse_metadata or {"reused_frozen_predictions": False, "oracle_reused": False}),

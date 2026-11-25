@@ -6,7 +6,7 @@
   "bootstrap_replications": 2000,
   "oracle_paths": 4096,
   "target_G": 280.0,
-  "code_fingerprint": "cbfeaa77b357cb43f9471aff374dffb7ab1285fe1553fd1a9d0059d77259dc6c",
+  "code_fingerprint": "9c97550269f472772879376f9c9ca5f560c1173acaa2477a970ad975efa4610b",
   "reference_mean_costs": {
     "SAA": 2.5489832681410753,
     "PF": 1.197030703898072,
@@ -16,6 +16,11 @@
     "SAA": 0.946,
     "PF": 1.0,
     "Oracle": 0.9282
+  },
+  "reference_coverages": {
+    "SAA": 0.901,
+    "PF": 1.0,
+    "Oracle": 0.8962
   },
   "reused_frozen_predictions": true,
   "oracle_reused": true,

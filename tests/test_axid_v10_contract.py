@@ -29,7 +29,7 @@ def test_v10_contract_is_frozen_and_self_consistent():
         "methods": 8,
         "variants": 5,
         "levels": 4,
-        "metrics": 4,
+        "metrics": 5,
         "n_train": 524288,
         "n_test": 10000,
         "optimizer_steps": 4096,

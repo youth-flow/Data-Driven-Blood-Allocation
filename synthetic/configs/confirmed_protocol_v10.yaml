@@ -148,7 +148,7 @@ performance_experiments:
   manual_gate_after_p2: true
 
 evaluation:
-  final_metrics: [P_PF, P_Oracle, MeanCost, SL_280]
+  final_metrics: [P_PF, P_Oracle, MeanCost, Coverage_0.9, SL_280]
   nominal_service_rate: 0.9
   saa_reference: unconditional_train_left_quantile
   perfect_foresight_reference: realized_demand
@@ -200,7 +200,7 @@ implementation_gates:
   - one_train_pool_one_test_pool_no_validation
   - batch128_steps4096_train524288_test10000
   - p3_four_p2_five_p1_eight
-  - exactly_two_P_mean_cost_and_target_service_rate
+  - exactly_two_P_mean_cost_and_two_service_rates
   - paired_bootstrap_2000
   - conditional_oracle_required_for_second_P
   - attention_environment_gpu_fp32

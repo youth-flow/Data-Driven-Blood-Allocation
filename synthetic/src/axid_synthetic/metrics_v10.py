@@ -44,7 +44,7 @@ def replenishment(prediction, inventory, target=COMMON_G):
 
 
 def daily_outcomes(prediction, demand, inventory, tau=TAU, target=COMMON_G):
-    """Compute the common policy, ending inventory, cost, and service indicator."""
+    """Compute policy outcomes, quantile coverage, and target service."""
     prediction = _vector(prediction, "prediction")
     demand = _vector(demand, "demand")
     inventory = _vector(inventory, "inventory")
@@ -62,6 +62,7 @@ def daily_outcomes(prediction, demand, inventory, tau=TAU, target=COMMON_G):
         "replenishment": order,
         "ending_inventory": ending,
         "cost": cost,
+        "coverage": demand <= prediction,
         "service": ending >= float(target),
     }
 
@@ -79,10 +80,20 @@ def perfect_foresight_outcomes(demand, inventory, tau=TAU, target=COMMON_G):
 
 def summarize_outcomes(outcomes):
     cost = _vector(outcomes["cost"], "cost")
+    coverage = np.asarray(outcomes["coverage"])
     service = np.asarray(outcomes["service"])
-    if service.ndim != 1 or service.shape != cost.shape:
-        raise ValueError("service must be a one-dimensional array aligned with cost")
-    return {"MeanCost": float(cost.mean()), "SL_G": float(service.astype(float).mean())}
+    if (
+        coverage.ndim != 1
+        or coverage.shape != cost.shape
+        or service.ndim != 1
+        or service.shape != cost.shape
+    ):
+        raise ValueError("coverage and service must be one-dimensional arrays aligned with cost")
+    return {
+        "MeanCost": float(cost.mean()),
+        "Coverage_0.9": float(coverage.astype(float).mean()),
+        "SL_G": float(service.astype(float).mean()),
+    }
 
 
 def prescriptiveness(method_cost, saa_cost, reference_cost, *, atol=1e-12, rtol=1e-10):
@@ -151,6 +162,7 @@ def paired_bootstrap(
     method_costs: Mapping[str, Sequence[float]],
     method_services: Mapping[str, Sequence[float]],
     *,
+    method_coverages: Mapping[str, Sequence[float]],
     saa_cost: Sequence[float],
     pf_cost: Sequence[float],
     oracle_cost: Sequence[float],
@@ -158,7 +170,7 @@ def paired_bootstrap(
     seed=2026111406,
     chunk_size=100,
 ):
-    """Paired day bootstrap for MeanCost, SL, PF-P, and Oracle-P.
+    """Paired day bootstrap for MeanCost, two service rates, PF-P, and Oracle-P.
 
     One common resampled day-index vector is used for every method and all
     three references in each replication.  This routine consumes saved arrays;
@@ -166,8 +178,9 @@ def paired_bootstrap(
     """
     costs = _aligned_arrays(method_costs, "method_costs")
     services = _aligned_arrays(method_services, "method_services")
-    if set(costs) != set(services):
-        raise ValueError("method_costs and method_services must have identical keys")
+    coverages = _aligned_arrays(method_coverages, "method_coverages")
+    if set(costs) != set(services) or set(costs) != set(coverages):
+        raise ValueError("method costs, coverages, and services must have identical keys")
     n = len(next(iter(costs.values())))
     references = {
         "SAA": _vector(saa_cost, "saa_cost"),
@@ -183,8 +196,15 @@ def paired_bootstrap(
     names = list(costs)
     cost_matrix = np.stack([costs[name] for name in names])
     service_matrix = np.stack([services[name] for name in names])
+    coverage_matrix = np.stack([coverages[name] for name in names])
     rng = np.random.default_rng(seed)
-    draws = {name: {metric: [] for metric in ("MeanCost", "SL_G", "P_PF", "P_Oracle")} for name in names}
+    draws = {
+        name: {
+            metric: []
+            for metric in ("MeanCost", "Coverage_0.9", "SL_G", "P_PF", "P_Oracle")
+        }
+        for name in names
+    }
     for start in range(0, replications, chunk_size):
         width = min(chunk_size, replications - start)
         indices = rng.integers(0, n, size=(width, n))
@@ -194,6 +214,7 @@ def paired_bootstrap(
         for row, name in enumerate(names):
             cost_mean = cost_matrix[row][indices].mean(axis=1)
             service_mean = service_matrix[row][indices].mean(axis=1)
+            coverage_mean = coverage_matrix[row][indices].mean(axis=1)
             pf_denominator = saa_mean - pf_mean
             oracle_denominator = saa_mean - oracle_mean
             scale = np.maximum(1.0, np.abs(saa_mean))
@@ -205,6 +226,7 @@ def paired_bootstrap(
             np.divide(saa_mean - cost_mean, oracle_denominator, out=p_oracle, where=oracle_valid)
             for metric, values in (
                 ("MeanCost", cost_mean),
+                ("Coverage_0.9", coverage_mean),
                 ("SL_G", service_mean),
                 ("P_PF", p_pf),
                 ("P_Oracle", p_oracle),
@@ -218,6 +240,7 @@ def paired_bootstrap(
     for name in names:
         estimates = {
             "MeanCost": float(costs[name].mean()),
+            "Coverage_0.9": float(coverages[name].mean()),
             "SL_G": float(services[name].mean()),
             "P_PF": prescriptiveness(float(costs[name].mean()), saa_estimate, pf_estimate)["value"],
             "P_Oracle": prescriptiveness(float(costs[name].mean()), saa_estimate, oracle_estimate)["value"],

@@ -23,6 +23,7 @@ def test_common_g_cost_service_and_nonnegative_pf():
     assert np.allclose(outcome["replenishment"], [50.0, 0.0, 60.0])
     assert np.allclose(outcome["ending_inventory"], [290.0, 280.0, 270.0])
     assert np.allclose(outcome["cost"], [1.0, 0.0, 9.0])
+    assert outcome["coverage"].tolist() == [True, True, False]
     assert outcome["service"].tolist() == [True, True, False]
 
     pf = perfect_foresight_outcomes(demand, inventory)
@@ -44,7 +45,7 @@ def test_two_p_and_complete_evaluation():
         training_demand=np.arange(1.0, 21.0),
         oracle_prediction=np.array([8.0, 25.0, 25.0, 45.0]),
     )
-    assert set(("MeanCost", "SL_G", "P_PF", "P_Oracle")) <= set(result)
+    assert set(("MeanCost", "Coverage_0.9", "SL_G", "P_PF", "P_Oracle")) <= set(result)
     assert len(result["daily"]["method"]["cost"]) == 4
 
 
@@ -53,6 +54,7 @@ def test_paired_bootstrap_is_deterministic_and_paired():
     x = np.linspace(0.0, 1.0, n)
     costs = {"DAT": 2.0 + x, "DeepQR": 2.2 + x}
     services = {"DAT": x >= 0.1, "DeepQR": x >= 0.2}
+    coverages = {"DAT": x >= 0.15, "DeepQR": x >= 0.25}
     kwargs = {
         "saa_cost": 3.0 + x,
         "pf_cost": 1.0 + x,
@@ -61,12 +63,13 @@ def test_paired_bootstrap_is_deterministic_and_paired():
         "seed": 123,
         "chunk_size": 7,
     }
-    first = paired_bootstrap(costs, services, **kwargs)
-    second = paired_bootstrap(costs, services, **kwargs)
+    first = paired_bootstrap(costs, services, method_coverages=coverages, **kwargs)
+    second = paired_bootstrap(costs, services, method_coverages=coverages, **kwargs)
     assert first.equals(second)
-    assert len(first) == 2 * 4
+    assert len(first) == 2 * 5
     dat = first[first.method.eq("DAT")].set_index("metric")
     assert np.isclose(dat.loc["MeanCost", "estimate"], costs["DAT"].mean())
+    assert np.isclose(dat.loc["Coverage_0.9", "estimate"], coverages["DAT"].mean())
     assert np.isclose(dat.loc["P_PF", "estimate"], 0.5)
     assert np.isclose(dat.loc["P_Oracle", "estimate"], 2.0 / 3.0)
     assert (first.ci_lower <= first.ci_upper).all()

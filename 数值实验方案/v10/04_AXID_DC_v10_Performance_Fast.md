@@ -23,10 +23,15 @@ E_{m,t}=I_t+q_{m,t}-D_t,
 c_{m,t}=0.9(G-E_{m,t})_++0.1(E_{m,t}-G)_+.
 \]
 
-正式结果只报告四项：
+正式结果报告两个 (P)、平均成本与两种服务率：
 
 \[
-\operatorname{MeanCost}_m=T^{-1}\sum_t c_{m,t},\qquad
+\operatorname{MeanCost}_m=T^{-1}\sum_t c_{m,t},
+\]
+
+\[
+\operatorname{Coverage}_{0.9}(m)=T^{-1}\sum_t\mathbf 1\{D_t\le\widehat f_m(Z_t)\},
+\qquad
 SL_{280}(m)=T^{-1}\sum_t\mathbf 1\{E_{m,t}\ge280\},
 \]
 
@@ -36,7 +41,9 @@ P_{Oracle}(m)=\frac{C_{SAA}-C_m}{C_{SAA}-C_{Oracle}}.
 \]
 
 两个 \(P\) 不裁剪到 \([0,1]\)；分母非正或绝对值不大于合同容差时标记不可解释。
-Pinball 只作为训练损失和运行诊断，不是最终性能指标。不存在多 \(G\) 聚合或
+其中 \(\operatorname{Coverage}_{0.9}\) 检查 0.9 分位数校准；由于非负订货截断，
+\(SL_{280}\ge\operatorname{Coverage}_{0.9}\)。Pinball 只作为训练损失和运行诊断，
+不是最终性能指标。不存在多 \(G\) 聚合或
 `G=340` 特例。
 
 ## 2. 样本与训练预算
@@ -99,7 +106,7 @@ f^*(Z)=Q_{0.9}(D\mid Z),\qquad Z=(A^-,c_p,c_e,I),
 16,384 路径检查数值稳定性。Oracle 逐日预测只计算一次，所有方法与 Bootstrap 共用。
 
 正式区间使用 2,000 次同日配对 Bootstrap：每次用同一组测试日索引同时重抽所有方法、
-SAA、PF 与 Oracle，并重新计算成本、服务率、成本差和两个比值。它不重训模型、不重跑
+SAA、PF 与 Oracle，并重新计算成本、两种服务率、成本差和两个比值。它不重训模型、不重跑
 DGP、不重算 Oracle；区间只条件于已经拟合的固定模型。
 
 ## 5. 大数据执行合同
