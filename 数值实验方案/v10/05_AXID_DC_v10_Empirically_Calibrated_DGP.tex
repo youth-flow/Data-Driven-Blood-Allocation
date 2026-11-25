@@ -261,8 +261,6 @@ H&.831&\TN(57.8,8.4^2)&.169&\TN(101.1,27.2^2)\\
 \textbf{生成顺序：}
 先抽 $r_i$，再抽 $Hb_i^\star\sim Hb\mid r_i$ 并截断至 $[42,170]$；
 再按训练期经验缺失概率 $.01506$ 抽 $M_i$；缺失时以训练期中位数 122 补齐，否则 $Hb_i=Hb_i^\star$。
-
-\smallnote{临床阈值参考：Carson et al. (2023), \textit{Red Blood Cell Transfusion: 2023 AABB International Guidelines}, \textit{JAMA} 330(19):1892--1902。}
 \endgroup
 
 \newpage
@@ -288,6 +286,7 @@ $\ell_i$ & 对申请规模作对数变换，平滑右尾并映射到统一尺度
 $d_i$ & 风险调整后的 Hb 缺口；$70+10r_i\in[70,80]$ g/L 参考 AABB 讨论的限制性输血阈值范围。\\
 \end{tabularx}
 \end{center}
+\smallnote{临床阈值参考：Carson et al. (2023), \textit{Red Blood Cell Transfusion: 2023 AABB International Guidelines}, \textit{JAMA} 330(19):1892--1902。}
 \[
 \boxed{\gamma_i=.43(.5+1.5\ell_i)},
 \qquad
@@ -352,17 +351,16 @@ D_t=\sum_{i\in\mathcal A_t}Y_{it}.
 \group{两类交互}
 \smallnote{库存与患者集合共同形成影子价格，再由影子价格联合决定个体发血量。}
 \[
-\begin{aligned}
+\setlength{\arraycolsep}{4pt}
+\begin{array}{rcll}
 \{u_j,r_j,Hb_j\}_{j\in\mathcal A_t}
-&\longrightarrow
-\underset{\substack{\uparrow\\[-2pt] I_t}}{\lambda_t}
-\longrightarrow Y_{it}
-&&\text{\bfseries 患者-患者交互},\\[7pt]
+&\longrightarrow& \lambda_t\longrightarrow Y_{it}
+&\qquad\text{\bfseries 患者-患者交互},\\[-1pt]
+I_t &\nearrow& &\\[-1pt]
 (c_{p,t}\ell_i,\,c_{e,t}r_i)
-&\longrightarrow\phi_{it}
-\longrightarrow Y_{it}
-&&\text{\bfseries 日级状态-患者交互}.
-\end{aligned}
+&\longrightarrow& \phi_{it}\longrightarrow Y_{it}
+&\qquad\text{\bfseries 日级状态-患者交互}.
+\end{array}
 \]
 
 \newpage

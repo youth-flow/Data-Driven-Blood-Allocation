@@ -45,7 +45,11 @@ SCRIPTS = {
 }
 SOURCE_EXTENSIONS = {".py", ".md", ".yaml", ".yml", ".toml", ".sh", ".tex"}
 PRIVATE_PARTS = {"__pycache__", "outputs", "results", "artifacts", "checkpoints", "generated", ".git"}
-V10_RELEASE_PDF = "数值实验方案/v10/05_AXID_DC_v10_Empirically_Calibrated_DGP.pdf"
+V10_RELEASE_PDFS = {
+    # Retain the former path so the history audit continues to accept earlier v10 commits.
+    "数值实验方案/v10/05_AXID_DC_v10_Empirically_Calibrated_DGP.pdf",
+    "数值实验方案/v10/Empirically Calibrated DGP.pdf",
+}
 V10_RESULT_PREFIX = "outputs/axid_v10_fast/"
 V10_RESULT_ROOT_FILES = {
     "README.md",
@@ -124,7 +128,7 @@ def audited_v10_result(path):
 
 def audited_binary(path):
     return (
-        path == V10_RELEASE_PDF
+        path in V10_RELEASE_PDFS
         or (
             audited_v10_result(path)
             and PurePosixPath(path).suffix.lower() in {".npy", ".npz"}
@@ -136,7 +140,7 @@ def allowed(path):
     p = PurePosixPath(path)
     if p.is_absolute() or ".." in p.parts or "\\" in path:
         return False
-    if path == V10_RELEASE_PDF or audited_v10_result(path):
+    if path in V10_RELEASE_PDFS or audited_v10_result(path):
         return True
     if any(part.startswith((".env", ".private")) or part in PRIVATE_PARTS for part in p.parts):
         return False

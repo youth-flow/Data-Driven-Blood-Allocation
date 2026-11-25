@@ -102,6 +102,7 @@ def test_frozen_v10_release_allowlist_is_exact():
     allowed = (
         "数值实验方案/v10/05_AXID_DC_v10_Empirically_Calibrated_DGP.tex",
         "数值实验方案/v10/05_AXID_DC_v10_Empirically_Calibrated_DGP.pdf",
+        "数值实验方案/v10/Empirically Calibrated DGP.pdf",
         "outputs/axid_v10_fast/final_metrics.csv",
         "outputs/axid_v10_fast/daily_metric_arrays.npz",
         "outputs/axid_v10_fast/dataset/generation.yaml",
